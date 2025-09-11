@@ -76,7 +76,14 @@ const projectSchema = new mongoose.Schema({
 });
 
 // Generate unique project ID
-projectSchema.pre('save', async function(next) {
+// projectSchema.pre('save', async function(next) {
+//   if (!this.projectId) {
+//     const count = await mongoose.model('Project').countDocuments();
+//     this.projectId = `PRJ-${Date.now()}-${(count + 1).toString().padStart(4, '0')}`;
+//   }
+//   next();
+// });
+projectSchema.pre('validate', async function (next) {
   if (!this.projectId) {
     const count = await mongoose.model('Project').countDocuments();
     this.projectId = `PRJ-${Date.now()}-${(count + 1).toString().padStart(4, '0')}`;

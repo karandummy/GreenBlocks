@@ -24,9 +24,9 @@ exports.getAllProjects = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
-
+    console.log('Projects fetched:', projects);
     const total = await Project.countDocuments(query);
-
+    console.log('Total projects count:', total);
     res.json({
       success: true,
       projects,
@@ -64,11 +64,12 @@ exports.getMyProjects = async (req, res) => {
 
 exports.getProjectById = async (req, res) => {
   try {
+    console.log('Fetching project with ID:', req);
     const project = await Project.findById(req.params.id)
       .populate('developer', 'name organization email')
       .populate('verification.reviewedBy', 'name organization')
       .populate('mrvData');
-
+    console.log('Project fetched by ID:', project);
     if (!project) {
       return res.status(404).json({ 
         success: false, 
@@ -92,6 +93,7 @@ exports.getProjectById = async (req, res) => {
 exports.createProject = async (req, res) => {
   try {
     const errors = validationResult(req);
+    console.log('Validation errors:', errors.array());
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
         success: false, 
@@ -124,17 +126,17 @@ exports.createProject = async (req, res) => {
 
 exports.updateProject = async (req, res) => {
   try {
+    console.log('Project to update:', req.user.userId);
     const project = await Project.findById(req.params.id);
-
     if (!project) {
       return res.status(404).json({ 
         success: false, 
         message: 'Project not found' 
       });
     }
-
+    console.log("project.developer.toString()",project.developer.toString())
     // Check if user owns the project
-    if (project.developer.toString() !== req.user.userId) {
+    if (project.developer.toString() !== req.user.userId.toString()) {
       return res.status(403).json({ 
         success: false, 
         message: 'Not authorized to update this project' 
@@ -151,6 +153,7 @@ exports.updateProject = async (req, res) => {
 
     Object.assign(project, req.body);
     await project.save();
+    console.log('Updated project:', project);
 
     res.json({
       success: true,

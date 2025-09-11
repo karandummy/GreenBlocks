@@ -39,6 +39,7 @@ export const projectService = {
 
   async updateProject(id, projectData) {
     try {
+      console.log('Updating project with ID:', id, projectData);
       const response = await api.put(`/projects/${id}`, projectData);
       return response.data;
     } catch (error) {

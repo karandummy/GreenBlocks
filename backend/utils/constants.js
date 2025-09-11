@@ -112,5 +112,21 @@ exports.VALIDATION = {
   PROJECT_DESCRIPTION_MIN_LENGTH: 10,
   ORGANIZATION_MIN_LENGTH: 2,
   MAX_VINTAGE_YEAR: new Date().getFullYear() + 1,
-  MIN_VINTAGE_YEAR: 1990 // doubt
+  MIN_VINTAGE_YEAR: 2020,
+  MAX_CREDITS: 1000000,
+  MIN_CREDITS: 1
 };
+
+exports.COUNTRIES = [
+  'India', 'United States', 'China', 'Brazil', 'Germany', 
+  'United Kingdom', 'France', 'Canada', 'Australia', 'Japan'
+];
+
+exports.INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
+  'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
+  'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
+  'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+  'Uttar Pradesh', 'Uttarakhand', 'West Bengal'
+];

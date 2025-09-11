@@ -76,11 +76,29 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 };
 
 // Remove password from JSON output
+
+// userSchema.methods.toJSON = function() {
+//   const userObject = this.toObject();
+//   delete userObject.password;
+//   delete userObject.verification.verificationToken;
+//   return userObject;
+// };
 userSchema.methods.toJSON = function() {
-  const userObject = this.toObject();
-  delete userObject.password;
-  delete userObject.verification.verificationToken;
+  const userObject = this.toObject ? this.toObject() : this;
+
+  if (!userObject) return {};
+
+  // Always strip sensitive fields safely
+  if ("password" in userObject) {
+    delete userObject.password;
+  }
+
+  if (userObject.verification && "verificationToken" in userObject.verification) {
+    delete userObject.verification.verificationToken;
+  }
+
   return userObject;
 };
+
 
 module.exports = mongoose.model('User', userSchema);

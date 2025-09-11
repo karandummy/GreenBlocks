@@ -1,0 +1,87 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {"internalType": "string", "name": "_name", "type": "string"},
+        {"internalType": "string", "name": "_symbol", "type": "string"},
+        {"internalType": "string", "name": "_uri", "type": "string"}
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {"indexed": true, "internalType": "address", "name": "account", "type": "address"},
+        {"indexed": true, "internalType": "address", "name": "operator", "type": "address"},
+        {"indexed": false, "internalType": "bool", "name": "approved", "type": "bool"}
+      ],
+      "name": "ApprovalForAll",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {"indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256"},
+        {"indexed": true, "internalType": "address", "name": "to", "type": "address"},
+        {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"},
+        {"indexed": false, "internalType": "string", "name": "projectId", "type": "string"}
+      ],
+      "name": "TokensMinted",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {"internalType": "address", "name": "account", "type": "address"},
+        {"internalType": "uint256", "name": "id", "type": "uint256"}
+      ],
+      "name": "balanceOf",
+      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "address", "name": "to", "type": "address"},
+        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
+        {"internalType": "uint256", "name": "amount", "type": "uint256"},
+        {"internalType": "string", "name": "projectId", "type": "string"},
+        {"internalType": "string", "name": "metadataURI", "type": "string"}
+      ],
+      "name": "mintCredits",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
+        {"internalType": "uint256", "name": "amount", "type": "uint256"},
+        {"internalType": "string", "name": "reason", "type": "string"}
+      ],
+      "name": "retireCredits",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "uint256", "name": "id", "type": "uint256"}
+      ],
+      "name": "totalSupply",
+      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "uint256", "name": "tokenId", "type": "uint256"}
+      ],
+      "name": "uri",
+      "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b506004361061009e5760003560e01c8063731133e911610066578063731133e9146101b8578063a22cb4651461021b578063e985e9c514610249578063f242432a14610277578063f5298aca146102f45761009e565b8062fdd58e146100a357806301ffc9a7146100ff5780630e89341c1461013f5780632eb2c2d6146101855780634e1273f41461023a575b600080fd5b6100ed600480360360408110156100b957600080fd5b506001600160a01b0381351690602001356103a1565b60408051918252519081900360200190f35b6101396004803603602081101561011557600080fd5b50357fffffffff00000000000000000000000000000000000000000000000000000000166103c3565b604080519115158252519081900360200190f35b61016c6004803603602081101561015557600080fd5b50356103f6565b6040805160208082528351818301528351919283929083019185019080838360005b838110156101a657818101518382015260200161018e565b50505050905090810190601f1680156101d35780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b610238600480360360a08110156101a157600080fd5b506001600160a01b038135811691602081013590911690604081013590606081013590608001356104e1565b005b61033060048036036040811015610250578..."
+}

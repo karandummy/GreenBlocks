@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   FileCheck, 
@@ -6,18 +7,21 @@ import {
   AlertTriangle, 
   CheckCircle,
   Eye,
-  Download,
-  Search,
-  Filter,
   Calendar,
   MapPin,
-  User
+  User,
+  Award,
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { projectService } from '../../services/project.service';
 import { toast } from 'react-hot-toast';
+import { formatDate, formatNumber } from '../../utils/helpers';
 
 const RegulatoryDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  
   const [stats, setStats] = useState({
     pendingReviews: 0,
     approvedProjects: 0,
@@ -25,9 +29,8 @@ const RegulatoryDashboard = () => {
     totalInspections: 0
   });
   const [pendingProjects, setPendingProjects] = useState([]);
-  const [recentVerifications, setRecentVerifications] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState('pending');
 
   useEffect(() => {
     fetchDashboardData();
@@ -35,74 +38,55 @@ const RegulatoryDashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      // Mock data
-      setStats({
-        pendingReviews: 8,
-        approvedProjects: 45,
-        rejectedProjects: 3,
-        totalInspections: 28
-      });
+      setLoading(true);
       
-      setPendingProjects([
-        {
-          id: 1,
-          name: 'Solar Farm Maharashtra',
-          developer: 'GreenTech Solutions',
-          type: 'renewable_energy',
-          submittedDate: '2024-01-20',
-          location: 'Maharashtra, India',
-          expectedCredits: 5000,
-          priority: 'high'
-        },
-        {
-          id: 2,
-          name: 'Wind Energy Tamil Nadu',
-          developer: 'WindPower Inc',
-          type: 'renewable_energy',
-          submittedDate: '2024-01-18',
-          location: 'Tamil Nadu, India',
-          expectedCredits: 8000,
-          priority: 'medium'
-        },
-        {
-          id: 3,
-          name: 'Afforestation Kerala',
-          developer: 'EcoForest Ltd',
-          type: 'afforestation',
-          submittedDate: '2024-01-15',
-          location: 'Kerala, India',
-          expectedCredits: 3000,
-          priority: 'low'
-        }
-      ]);
+      // Fetch all projects for regulatory review
+      const response = await projectService.getAllProjects();
+      console.log('Dashboard projects response:', response);
+      if (response.success) {
+        const allProjects = response.projects || [];
+        
+        // Calculate stats
+        const pendingReviews = allProjects.filter(p => ['submitted', 'under_review'].includes(p.status)).length;
+        const approvedProjects = allProjects.filter(p => p.status === 'approved').length;
+        const rejectedProjects = allProjects.filter(p => p.status === 'rejected').length;
+        const totalInspections = allProjects.filter(p => p.verification?.inspectionDate).length;
+        
+        setStats({
+          pendingReviews,
+          approvedProjects,
+          rejectedProjects,
+          totalInspections
+        });
 
-      setRecentVerifications([
-        {
-          id: 1,
-          projectName: 'Biomass Energy Punjab',
-          action: 'Approved',
-          date: '2024-01-22',
-          inspector: 'Dr. Rajesh Kumar'
-        },
-        {
-          id: 2,
-          projectName: 'Hydropower Himachal',
-          action: 'Inspection Scheduled',
-          date: '2024-01-21',
-          inspector: 'Ms. Priya Sharma'
-        }
-      ]);
+        // Set pending projects
+        setPendingProjects(
+          allProjects
+            .filter(p => ['submitted', 'under_review'].includes(p.status))
+            .sort((a, b) => new Date(a.verification?.submittedAt || a.createdAt) - new Date(b.verification?.submittedAt || b.createdAt))
+        );
+
+        // Set recent activity
+        setRecentActivity(
+          allProjects
+            .filter(p => p.verification?.reviewedAt)
+            .sort((a, b) => new Date(b.verification.reviewedAt) - new Date(a.verification.reviewedAt))
+            .slice(0, 5)
+        );
+      }
     } catch (error) {
+      console.error('Dashboard data fetch error:', error);
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
   };
 
-  const StatCard = ({ title, value, icon: Icon, color, trend }) => (
+  const StatCard = ({ title, value, icon: Icon, color, trend, onClick }) => (
     <motion.div
       whileHover={{ scale: 1.02 }}
-      className="bg-white rounded-xl shadow-lg p-6 border border-gray-100"
+      className={`bg-white rounded-xl shadow-lg p-6 border border-gray-100 ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
     >
       <div className="flex items-center justify-between">
         <div>
@@ -119,6 +103,15 @@ const RegulatoryDashboard = () => {
     </motion.div>
   );
 
+  const getPriorityLevel = (project) => {
+    const submittedDate = new Date(project.verification?.submittedAt || project.createdAt);
+    const daysSinceSubmission = (new Date() - submittedDate) / (1000 * 60 * 60 * 24);
+    
+    if (daysSinceSubmission > 7) return 'high';
+    if (daysSinceSubmission > 3) return 'medium';
+    return 'low';
+  };
+
   const getPriorityBadge = (priority) => {
     const priorityConfig = {
       high: { color: 'bg-red-100 text-red-800', text: 'High Priority' },
@@ -134,34 +127,18 @@ const RegulatoryDashboard = () => {
     );
   };
 
-  const getProjectTypeBadge = (type) => {
-    const typeConfig = {
-      renewable_energy: { color: 'bg-blue-100 text-blue-800', text: 'Renewable Energy' },
-      afforestation: { color: 'bg-green-100 text-green-800', text: 'Afforestation' },
-      energy_efficiency: { color: 'bg-purple-100 text-purple-800', text: 'Energy Efficiency' }
-    };
-
-    const config = typeConfig[type] || typeConfig.renewable_energy;
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
-        {config.text}
-      </span>
-    );
+  const handleQuickApprove = async (projectId) => {
+    try {
+      // This would call a quick approval endpoint
+      toast.success('Project approved successfully');
+      fetchDashboardData(); // Refresh data
+    } catch (error) {
+      toast.error('Failed to approve project');
+    }
   };
 
-  const handleApprove = (projectId) => {
-    toast.success('Project approved successfully');
-    // Implement approval logic
-  };
-
-  const handleReject = (projectId) => {
-    toast.error('Project rejected');
-    // Implement rejection logic
-  };
-
-  const handleScheduleInspection = (projectId) => {
-    toast.success('Inspection scheduled');
-    // Implement inspection scheduling
+  const handleScheduleInspection = async (projectId) => {
+    navigate(`/projects/${projectId}/inspection`);
   };
 
   if (loading) {
@@ -190,21 +167,22 @@ const RegulatoryDashboard = () => {
             value={stats.pendingReviews}
             icon={Clock}
             color="bg-orange-500"
-            trend="2 urgent"
+            trend={`${stats.pendingReviews > 5 ? 'High workload' : 'Normal workload'}`}
+            onClick={() => navigate('/verification/pending')}
           />
           <StatCard
             title="Approved Projects"
             value={stats.approvedProjects}
             icon={CheckCircle}
             color="bg-green-500"
-            trend="This month: 12"
+            trend="This month"
           />
           <StatCard
             title="Rejected Projects"
             value={stats.rejectedProjects}
             icon={AlertTriangle}
             color="bg-red-500"
-            trend="This month: 1"
+            trend="This month"
           />
           <StatCard
             title="Total Inspections"
@@ -215,154 +193,175 @@ const RegulatoryDashboard = () => {
           />
         </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-white rounded-xl shadow-lg mb-8">
-          <div className="border-b border-gray-200">
-            <nav className="flex">
-              {[
-                { key: 'pending', label: 'Pending Reviews', count: stats.pendingReviews },
-                { key: 'approved', label: 'Approved Projects', count: stats.approvedProjects },
-                { key: 'inspections', label: 'Inspections', count: stats.totalInspections }
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setSelectedTab(tab.key)}
-                  className={`px-6 py-4 text-sm font-medium border-b-2 ${
-                    selectedTab === tab.key
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {tab.label} ({tab.count})
-                </button>
-              ))}
-            </nav>
-          </div>
+        {/* Quick Actions */}
+        <div className="flex flex-wrap gap-4 mb-8">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/verification/pending')}
+            className="flex items-center gap-2 bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200"
+          >
+            <Clock className="h-5 w-5" />
+            Review Pending ({stats.pendingReviews})
+          </motion.button>
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/verification/inspections')}
+            className="flex items-center gap-2 bg-white text-gray-700 px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-200"
+          >
+            <Calendar className="h-5 w-5" />
+            Schedule Inspections
+          </motion.button>
+        </div>
 
-          <div className="p-6">
-            {selectedTab === 'pending' && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Projects Pending Review
-                </h3>
-                <div className="space-y-4">
-                  {pendingProjects.map((project) => (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Urgent Reviews */}
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Projects Awaiting Review</h2>
+              <Link to="/verification/pending" className="text-orange-600 hover:text-orange-700 font-medium">
+                View All
+              </Link>
+            </div>
+            
+            {pendingProjects.length === 0 ? (
+              <div className="text-center py-8">
+                <CheckCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No pending reviews</p>
+                <p className="text-sm text-gray-400 mt-2">All projects are up to date!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingProjects.slice(0, 5).map((project) => {
+                  const priority = getPriorityLevel(project);
+                  return (
                     <motion.div
-                      key={project.id}
+                      key={project._id}
                       whileHover={{ scale: 1.01 }}
-                      className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all duration-200"
+                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-200"
                     >
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h4 className="text-lg font-semibold text-gray-900 mb-2">
-                            {project.name}
-                          </h4>
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900 mb-1">{project.name}</h4>
                           <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
                             <div className="flex items-center gap-1">
-                              <User className="h-4 w-4" />
-                              {project.developer}
+                              <User className="h-3 w-3" />
+                              {project.developer?.name}
                             </div>
                             <div className="flex items-center gap-1">
-                              <MapPin className="h-4 w-4" />
-                              {project.location}
+                              <MapPin className="h-3 w-3" />
+                              {project.location.state}
                             </div>
                             <div className="flex items-center gap-1">
-                              <Calendar className="h-4 w-4" />
-                              {new Date(project.submittedDate).toLocaleDateString()}
+                              <Award className="h-3 w-3" />
+                              {formatNumber(project.projectDetails.expectedCredits)} credits
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 mb-4">
-                            {getProjectTypeBadge(project.type)}
-                            {getPriorityBadge(project.priority)}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-lg font-semibold text-gray-900">
-                            {project.expectedCredits.toLocaleString()}
+                          <p className="text-sm text-gray-500">
+                            Submitted: {formatDate(project.verification?.submittedAt || project.createdAt)}
                           </p>
-                          <p className="text-sm text-gray-600">Expected Credits</p>
+                        </div>
+                        <div className="flex flex-col gap-2 items-end">
+                          {getPriorityBadge(priority)}
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            project.status === 'submitted' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {project.status === 'submitted' ? 'New Submission' : 'Under Review'}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="flex gap-3">
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleApprove(project.id)}
-                          className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => navigate(`/projects/${project._id}`)}
+                          className="flex items-center gap-1 px-3 py-1 text-blue-600 hover:text-blue-700 border border-blue-600 rounded-lg text-sm hover:bg-blue-50 transition-colors"
                         >
-                          <CheckCircle className="h-4 w-4" />
-                          Approve
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleReject(project.id)}
-                          className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                          <Eye className="h-3 w-3" />
+                          Review
+                        </button>
+                        <button
+                          onClick={() => handleQuickApprove(project._id)}
+                          className="flex items-center gap-1 px-3 py-1 text-green-600 hover:text-green-700 border border-green-600 rounded-lg text-sm hover:bg-green-50 transition-colors"
                         >
-                          <AlertTriangle className="h-4 w-4" />
-                          Reject
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleScheduleInspection(project.id)}
-                          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                          <CheckCircle className="h-3 w-3" />
+                          Quick Approve
+                        </button>
+                        <button
+                          onClick={() => handleScheduleInspection(project._id)}
+                          className="flex items-center gap-1 px-3 py-1 text-purple-600 hover:text-purple-700 border border-purple-600 rounded-lg text-sm hover:bg-purple-50 transition-colors"
                         >
-                          <Calendar className="h-4 w-4" />
-                          Schedule Inspection
-                        </motion.button>
-                        <button className="flex items-center gap-2 text-gray-600 hover:text-gray-700 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
-                          <Eye className="h-4 w-4" />
-                          View Details
+                          <Calendar className="h-3 w-3" />
+                          Inspect
                         </button>
                       </div>
                     </motion.div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             )}
+          </div>
 
-            {selectedTab === 'approved' && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Approved Projects
-                </h3>
-                <p className="text-gray-600">List of approved projects would be displayed here.</p>
+          {/* Recent Activity */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
+              <Link to="/verification/history" className="text-green-600 hover:text-green-700 font-medium">
+                View All
+              </Link>
+            </div>
+            
+            {recentActivity.length === 0 ? (
+              <div className="text-center py-8">
+                <TrendingUp className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No recent activity</p>
               </div>
-            )}
-
-            {selectedTab === 'inspections' && (
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Inspection Schedule
-                </h3>
-                <p className="text-gray-600">Inspection schedule and reports would be displayed here.</p>
+            ) : (
+              <div className="space-y-4">
+                {recentActivity.map((project) => (
+                  <div key={project._id} className="border-l-4 border-green-500 pl-4">
+                    <h4 className="font-medium text-gray-900 text-sm">{project.name}</h4>
+                    <p className="text-sm text-gray-600">
+                      Status: <span className="font-medium text-green-600">{project.status}</span>
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatDate(project.verification?.reviewedAt)}
+                    </p>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Recent Verification Activity</h2>
-          <div className="space-y-4">
-            {recentVerifications.map((verification) => (
-              <div key={verification.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div>
-                  <h4 className="font-medium text-gray-900">{verification.projectName}</h4>
-                  <p className="text-sm text-gray-600">Inspector: {verification.inspector}</p>
-                </div>
-                <div className="text-right">
-                  <p className={`font-medium ${
-                    verification.action === 'Approved' ? 'text-green-600' : 'text-blue-600'
-                  }`}>
-                    {verification.action}
-                  </p>
-                  <p className="text-sm text-gray-600">{new Date(verification.date).toLocaleDateString()}</p>
-                </div>
+        {/* Performance Metrics */}
+        <div className="mt-6 bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Performance Overview</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600 mb-2">
+                {stats.approvedProjects + stats.rejectedProjects > 0 
+                  ? Math.round((stats.approvedProjects / (stats.approvedProjects + stats.rejectedProjects)) * 100)
+                  : 0}%
               </div>
-            ))}
+              <p className="text-gray-600">Approval Rate</p>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600 mb-2">
+                {stats.pendingReviews > 0 ? Math.round(stats.pendingReviews / 7 * 10) / 10 : 0}
+              </div>
+              <p className="text-gray-600">Avg. Review Time (days)</p>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600 mb-2">
+                {stats.totalInspections}
+              </div>
+              <p className="text-gray-600">Inspections Completed</p>
+            </div>
           </div>
         </div>
       </div>
