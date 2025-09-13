@@ -13,7 +13,10 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  Upload
+  Upload,
+  Database,
+  Eye,
+  X
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { projectService } from '../../services/project.service';
@@ -30,6 +33,8 @@ const ProjectDetails = () => {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showMRVModal, setShowMRVModal] = useState(false);
+  const [selectedMRV, setSelectedMRV] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -58,7 +63,6 @@ const ProjectDetails = () => {
   const handleSubmitForVerification = async () => {
     try {
       setSubmitting(true);
-      // Update project status to submitted
       const response = await projectService.updateProject(id, { status: 'submitted' });
       if (response.success) {
         setProject(response.project);
@@ -70,6 +74,11 @@ const ProjectDetails = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleViewMRVData = (mrvData) => {
+    setSelectedMRV(mrvData);
+    setShowMRVModal(true);
   };
 
   const getStatusBadge = (status) => {
@@ -98,6 +107,20 @@ const ProjectDetails = () => {
     return type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  const getVerificationStatusBadge = (status) => {
+    const statusColors = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      verified: 'bg-green-100 text-green-800',
+      rejected: 'bg-red-100 text-red-800'
+    };
+    
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[status] || statusColors.pending}`}>
+        {status?.charAt(0).toUpperCase() + status?.slice(1) || 'Pending'}
+      </span>
+    );
+  };
+
   if (loading) {
     return <LoadingSpinner text="Loading project details..." />;
   }
@@ -111,9 +134,9 @@ const ProjectDetails = () => {
   }
 
   const isOwner = user?._id === project.developer?._id;
-  console.log("user id and project developer id",user, project.developer?._id)
   const canEdit = isOwner && project.status === 'draft';
   const canSubmit = isOwner && project.status === 'draft';
+  const canUploadMRV = isOwner && project.status === 'approved';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -121,7 +144,7 @@ const ProjectDetails = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/dashboard")}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -148,6 +171,18 @@ const ProjectDetails = () => {
                 Submit for Verification
               </button>
             )}
+
+            {canUploadMRV && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate(`/projects/${id}/mrv-data`)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
+              >
+                <Database className="h-4 w-4" />
+                Upload MRV Data
+              </motion.button>
+            )}
           </div>
         </div>
 
@@ -160,6 +195,21 @@ const ProjectDetails = () => {
             </div>
             {getStatusBadge(project.status)}
           </div>
+
+          {/* Show approved status message */}
+          {project.status === 'approved' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="text-green-800 font-medium">Project Approved!</p>
+                  <p className="text-green-700 text-sm">
+                    Your project has been approved. You can now upload MRV data to start generating carbon credits.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <p className="text-gray-700 mb-6">{project.description}</p>
 
@@ -205,7 +255,7 @@ const ProjectDetails = () => {
                 <p className="text-sm text-gray-600 mb-1">Baseline</p>
                 <p className="text-gray-900">{project.projectDetails.baseline}</p>
               </div>
-              {project.location.coordinates.latitude && project.location.coordinates.longitude && (
+              {project.location.coordinates?.latitude && project.location.coordinates?.longitude && (
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Coordinates</p>
                   <p className="text-gray-900">
@@ -280,6 +330,88 @@ const ProjectDetails = () => {
           )}
         </div>
 
+        {/* MRV Data Section - Show only for approved projects */}
+        {project.status === 'approved' && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">MRV Data</h3>
+              {isOwner && (
+                <button 
+                  onClick={() => navigate(`/projects/${id}/mrv-data`)}
+                  className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <Database className="h-4 w-4" />
+                  Manage MRV Data
+                </button>
+              )}
+            </div>
+
+            {project.mrvData && project.mrvData.length > 0 ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600 mb-3">Recent monitoring data submissions:</p>
+                {project.mrvData.slice(0, 5).map((mrv, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium text-gray-900">
+                          Reporting Period: {formatDate(mrv.reportingPeriod.startDate)} - {formatDate(mrv.reportingPeriod.endDate)}
+                        </p>
+                        {getVerificationStatusBadge(mrv.verification?.status)}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-600">Emission Reduction:</p>
+                          <p className="text-blue-700 font-medium">
+                            {formatNumber(mrv.emissionReductions?.reduction || 0)} tCO₂
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Measurements:</p>
+                          <p className="text-blue-700 font-medium">
+                            {mrv.measurements?.length || 0} parameters
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Uploaded on {formatDate(mrv.createdAt)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleViewMRVData(mrv)}
+                      className="ml-4 flex items-center gap-1 px-3 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View
+                    </button>
+                  </div>
+                ))}
+                {project.mrvData.length > 5 && (
+                  <div className="text-center pt-4">
+                    <button
+                      onClick={() => navigate(`/projects/${id}/mrv-data`)}
+                      className="text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      View all {project.mrvData.length} MRV submissions →
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Database className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-4">No MRV data uploaded yet</p>
+                <button
+                  onClick={() => navigate(`/projects/${id}/mrv-data`)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Database className="h-4 w-4" />
+                  Upload First MRV Data
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Verification Status */}
         {project.verification && (
           <div className="bg-white rounded-lg shadow-md p-6">
@@ -311,9 +443,15 @@ const ProjectDetails = () => {
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Comments</p>
                   <div className={`p-3 rounded-lg ${
-                    project.status === 'rejected' ? 'bg-red-50 border border-red-200' : 'bg-blue-50 border border-blue-200'
+                    project.status === 'rejected' ? 'bg-red-50 border border-red-200' : 
+                    project.status === 'approved' ? 'bg-green-50 border border-green-200' :
+                    'bg-blue-50 border border-blue-200'
                   }`}>
-                    <p className={project.status === 'rejected' ? 'text-red-800' : 'text-blue-800'}>
+                    <p className={
+                      project.status === 'rejected' ? 'text-red-800' : 
+                      project.status === 'approved' ? 'text-green-800' :
+                      'text-blue-800'
+                    }>
                       {project.verification.comments}
                     </p>
                   </div>
@@ -369,6 +507,217 @@ const ProjectDetails = () => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* MRV Data Details Modal */}
+      <Modal
+        isOpen={showMRVModal}
+        onClose={() => setShowMRVModal(false)}
+        title="MRV Data Details"
+        maxWidth="max-w-4xl"
+      >
+        {selectedMRV && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Reporting Period: {formatDate(selectedMRV.reportingPeriod.startDate)} - {formatDate(selectedMRV.reportingPeriod.endDate)}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Submitted on {formatDate(selectedMRV.createdAt)}
+                </p>
+              </div>
+              {getVerificationStatusBadge(selectedMRV.verification?.status)}
+            </div>
+
+            {/* Emission Reductions */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h4 className="font-medium text-green-900 mb-3">Emission Reductions</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm text-green-700">Baseline Emissions</p>
+                  <p className="text-lg font-semibold text-green-900">
+                    {formatNumber(selectedMRV.emissionReductions.baseline)} tCO₂
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-green-700">Actual Emissions</p>
+                  <p className="text-lg font-semibold text-green-900">
+                    {formatNumber(selectedMRV.emissionReductions.actual)} tCO₂
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-green-700">Emission Reduction</p>
+                  <p className="text-lg font-semibold text-green-900">
+                    {formatNumber(selectedMRV.emissionReductions.reduction)} tCO₂
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <p className="text-sm text-green-700">Methodology</p>
+                <p className="text-green-900">{selectedMRV.emissionReductions.methodology}</p>
+              </div>
+            </div>
+
+            {/* Measurements */}
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">
+                Measurements ({selectedMRV.measurements?.length || 0} parameters)
+              </h4>
+              {selectedMRV.measurements && selectedMRV.measurements.length > 0 ? (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="grid grid-cols-1 gap-4">
+                    {selectedMRV.measurements.map((measurement, index) => (
+                      <div key={index} className="bg-white p-4 rounded-lg border">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Parameter</p>
+                            <p className="font-medium text-gray-900">{measurement.parameter}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Value</p>
+                            <p className="font-medium text-gray-900">
+                              {formatNumber(measurement.value)} {measurement.unit}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Measurement Date</p>
+                            <p className="font-medium text-gray-900">
+                              {formatDate(measurement.measurementDate)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Equipment</p>
+                            <p className="font-medium text-gray-900">
+                              {measurement.equipment || 'Not specified'}
+                            </p>
+                          </div>
+                        </div>
+                        {measurement.methodology && (
+                          <div className="mt-3">
+                            <p className="text-sm text-gray-600">Methodology</p>
+                            <p className="text-gray-900">{measurement.methodology}</p>
+                          </div>
+                        )}
+                        {measurement.accuracy && (
+                          <div className="mt-2">
+                            <p className="text-sm text-gray-600">Accuracy</p>
+                            <p className="text-gray-900">{measurement.accuracy}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No measurements recorded</p>
+              )}
+            </div>
+
+            {/* Verification Details */}
+            {selectedMRV.verification && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Verification Details</h4>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-blue-700">Status</p>
+                      <div className="mt-1">
+                        {getVerificationStatusBadge(selectedMRV.verification.status)}
+                      </div>
+                    </div>
+                    {selectedMRV.verification.verificationDate && (
+                      <div>
+                        <p className="text-sm text-blue-700">Verification Date</p>
+                        <p className="font-medium text-blue-900">
+                          {formatDate(selectedMRV.verification.verificationDate)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {selectedMRV.verification.comments && (
+                    <div className="mt-3">
+                      <p className="text-sm text-blue-700">Comments</p>
+                      <p className="text-blue-900 mt-1">{selectedMRV.verification.comments}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Documentation */}
+            {selectedMRV.documentation && selectedMRV.documentation.length > 0 && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Supporting Documentation</h4>
+                <div className="space-y-2">
+                  {selectedMRV.documentation.map((doc, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <p className="font-medium text-gray-900">{doc.fileName}</p>
+                          <p className="text-sm text-gray-600">
+                            {doc.fileType} • Uploaded on {formatDate(doc.uploadDate)}
+                          </p>
+                        </div>
+                      </div>
+                      <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700">
+                        <Download className="h-4 w-4" />
+                        Download
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Blockchain Info */}
+            {selectedMRV.blockchain && (selectedMRV.blockchain.transactionHash || selectedMRV.blockchain.ipfsHash) && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Blockchain Information</h4>
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <div className="grid grid-cols-1 gap-3">
+                    {selectedMRV.blockchain.transactionHash && (
+                      <div>
+                        <p className="text-sm text-purple-700">Transaction Hash</p>
+                        <p className="font-mono text-sm text-purple-900 break-all">
+                          {selectedMRV.blockchain.transactionHash}
+                        </p>
+                      </div>
+                    )}
+                    {selectedMRV.blockchain.blockNumber && (
+                      <div>
+                        <p className="text-sm text-purple-700">Block Number</p>
+                        <p className="font-mono text-sm text-purple-900">
+                          {selectedMRV.blockchain.blockNumber}
+                        </p>
+                      </div>
+                    )}
+                    {selectedMRV.blockchain.ipfsHash && (
+                      <div>
+                        <p className="text-sm text-purple-700">IPFS Hash</p>
+                        <p className="font-mono text-sm text-purple-900 break-all">
+                          {selectedMRV.blockchain.ipfsHash}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Close Button */}
+            <div className="flex justify-end pt-4 border-t">
+              <button
+                onClick={() => setShowMRVModal(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -11,12 +11,15 @@ import {
   MapPin,
   User,
   Award,
-  TrendingUp
+  TrendingUp,
+  XCircle
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { projectService } from '../../services/project.service';
+import { verificationService } from '../../services/verification.service'; // You'll need to create this service
 import { toast } from 'react-hot-toast';
 import { formatDate, formatNumber } from '../../utils/helpers';
+import Modal from '../common/Modal';
 
 const RegulatoryDashboard = () => {
   const { user } = useAuth();
@@ -31,6 +34,14 @@ const RegulatoryDashboard = () => {
   const [pendingProjects, setPendingProjects] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Modal states for quick actions
+  const [showQuickApproveModal, setShowQuickApproveModal] = useState(false);
+  const [showQuickRejectModal, setShowQuickRejectModal] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [approvalComments, setApprovalComments] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -127,13 +138,70 @@ const RegulatoryDashboard = () => {
     );
   };
 
-  const handleQuickApprove = async (projectId) => {
+  const handleQuickApprove = (project) => {
+    setSelectedProject(project);
+    setApprovalComments('');
+    setShowQuickApproveModal(true);
+  };
+
+  const handleQuickReject = (project) => {
+    setSelectedProject(project);
+    setRejectionReason('');
+    setShowQuickRejectModal(true);
+  };
+
+  const confirmQuickApprove = async () => {
+    if (!selectedProject) return;
+    
     try {
-      // This would call a quick approval endpoint
-      toast.success('Project approved successfully');
-      fetchDashboardData(); // Refresh data
+      setActionLoading(true);
+      
+      // Call the verification service to approve the project
+      const response = await verificationService.approveProject(selectedProject._id, {
+        comments: approvalComments || 'Quick approval from dashboard'
+      });
+      
+      if (response.success) {
+        toast.success('Project approved successfully!');
+        setShowQuickApproveModal(false);
+        fetchDashboardData(); // Refresh data
+      } else {
+        throw new Error(response.message || 'Failed to approve project');
+      }
     } catch (error) {
-      toast.error('Failed to approve project');
+      console.error('Quick approve error:', error);
+      toast.error(error.message || 'Failed to approve project');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const confirmQuickReject = async () => {
+    if (!selectedProject || !rejectionReason.trim()) {
+      toast.error('Please provide a reason for rejection');
+      return;
+    }
+    
+    try {
+      setActionLoading(true);
+      
+      // Call the verification service to reject the project
+      const response = await verificationService.rejectProject(selectedProject._id, {
+        reason: rejectionReason
+      });
+      
+      if (response.success) {
+        toast.success('Project rejected successfully');
+        setShowQuickRejectModal(false);
+        fetchDashboardData(); // Refresh data
+      } else {
+        throw new Error(response.message || 'Failed to reject project');
+      }
+    } catch (error) {
+      console.error('Quick reject error:', error);
+      toast.error(error.message || 'Failed to reject project');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -273,7 +341,7 @@ const RegulatoryDashboard = () => {
                         </div>
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => navigate(`/projects/${project._id}`)}
                           className="flex items-center gap-1 px-3 py-1 text-blue-600 hover:text-blue-700 border border-blue-600 rounded-lg text-sm hover:bg-blue-50 transition-colors"
@@ -282,11 +350,18 @@ const RegulatoryDashboard = () => {
                           Review
                         </button>
                         <button
-                          onClick={() => handleQuickApprove(project._id)}
+                          onClick={() => handleQuickApprove(project)}
                           className="flex items-center gap-1 px-3 py-1 text-green-600 hover:text-green-700 border border-green-600 rounded-lg text-sm hover:bg-green-50 transition-colors"
                         >
                           <CheckCircle className="h-3 w-3" />
                           Quick Approve
+                        </button>
+                        <button
+                          onClick={() => handleQuickReject(project)}
+                          className="flex items-center gap-1 px-3 py-1 text-red-600 hover:text-red-700 border border-red-600 rounded-lg text-sm hover:bg-red-50 transition-colors"
+                        >
+                          <XCircle className="h-3 w-3" />
+                          Quick Reject
                         </button>
                         <button
                           onClick={() => handleScheduleInspection(project._id)}
@@ -365,6 +440,122 @@ const RegulatoryDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Quick Approve Modal */}
+      <Modal
+        isOpen={showQuickApproveModal}
+        onClose={() => setShowQuickApproveModal(false)}
+        title="Quick Approve Project"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-gray-600 mb-2">
+              Are you sure you want to approve the project <strong>"{selectedProject?.name}"</strong>?
+            </p>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-green-800 text-sm">
+                This action will immediately approve the project and make it eligible for carbon credit generation.
+              </p>
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Approval Comments (Optional)
+            </label>
+            <textarea
+              value={approvalComments}
+              onChange={(e) => setApprovalComments(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              rows="3"
+              placeholder="Add any comments about the approval..."
+            />
+          </div>
+          
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setShowQuickApproveModal(false)}
+              disabled={actionLoading}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmQuickApprove}
+              disabled={actionLoading}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {actionLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4" />
+              )}
+              {actionLoading ? 'Approving...' : 'Approve Project'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Quick Reject Modal */}
+      <Modal
+        isOpen={showQuickRejectModal}
+        onClose={() => setShowQuickRejectModal(false)}
+        title="Quick Reject Project"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-gray-600 mb-2">
+              Are you sure you want to reject the project <strong>"{selectedProject?.name}"</strong>?
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-red-800 text-sm">
+                This action will reject the project. The developer will be notified and can resubmit after addressing the issues.
+              </p>
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Rejection Reason <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              rows="4"
+              placeholder="Please provide a detailed reason for rejection..."
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              This reason will be sent to the project developer.
+            </p>
+          </div>
+          
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setShowQuickRejectModal(false)}
+              disabled={actionLoading}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmQuickReject}
+              disabled={actionLoading || !rejectionReason.trim()}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {actionLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <XCircle className="h-4 w-4" />
+              )}
+              {actionLoading ? 'Rejecting...' : 'Reject Project'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
