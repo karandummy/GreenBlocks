@@ -1,111 +1,116 @@
-import axios from 'axios';
+// src/services/verification.service.js
+import api from './api';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Handle response errors
-api.interceptors.response.use(
-  (response) => response.data,
-  (error) => {
-    console.error('API Error:', error.response?.data || error.message);
-    throw error.response?.data || { message: error.message };
-  }
-);
+const API_URL = 'http://localhost:5000/api/verification';
 
 export const verificationService = {
-  // Get pending verifications
+  // Get all pending verifications
   getPendingVerifications: async () => {
     try {
-      const response = await api.get('/verification/pending');
-      return response;
+      const response = await api.get(`${API_URL}/pending`);
+      return response.data;
     } catch (error) {
-      throw error;
+      console.error('Get pending verifications error:', error);
+      throw error.response?.data || { success: false, message: 'Failed to fetch pending verifications' };
     }
   },
 
-  // Get completed verifications
+  // Get all completed verifications
   getCompletedVerifications: async () => {
     try {
-      const response = await api.get('/verification/completed');
-      return response;
+      const response = await api.get(`${API_URL}/completed`);
+      return response.data;
     } catch (error) {
-      throw error;
+      console.error('Get completed verifications error:', error);
+      throw error.response?.data || { success: false, message: 'Failed to fetch completed verifications' };
     }
   },
 
   // Get project verification details
   getProjectVerification: async (projectId) => {
     try {
-      const response = await api.get(`/verification/projects/${projectId}`);
-      return response;
+      const response = await api.get(`${API_URL}/projects/${projectId}`);
+      return response.data;
     } catch (error) {
-      throw error;
+      console.error('Get project verification error:', error);
+      throw error.response?.data || { success: false, message: 'Failed to fetch project verification' };
     }
   },
 
-  // Review project
+  // Review a project (mark as under review)
   reviewProject: async (projectId, data) => {
     try {
-      const response = await api.post(`/verification/projects/${projectId}/review`, data);
-      return response;
+      const response = await api.post(`${API_URL}/projects/${projectId}/review`, data);
+      return response.data;
     } catch (error) {
-      throw error;
+      console.error('Review project error:', error);
+      throw error.response?.data || { success: false, message: 'Failed to review project' };
     }
   },
 
-  // Approve project
+  // Approve a project
   approveProject: async (projectId, data) => {
     try {
-      const response = await api.post(`/verification/projects/${projectId}/approve`, data);
-      return response;
+      const response = await api.post(`${API_URL}/projects/${projectId}/approve`, data);
+      return response.data;
     } catch (error) {
-      throw error;
+      console.error('Approve project error:', error);
+      throw error.response?.data || { success: false, message: 'Failed to approve project' };
     }
   },
 
-  // Reject project
+  // Reject a project
   rejectProject: async (projectId, data) => {
     try {
-      const response = await api.post(`/verification/projects/${projectId}/reject`, data);
-      return response;
+      const response = await api.post(`${API_URL}/projects/${projectId}/reject`, data);
+      return response.data;
     } catch (error) {
-      throw error;
+      console.error('Reject project error:', error);
+      throw error.response?.data || { success: false, message: 'Failed to reject project' };
     }
   },
 
-  // Schedule inspection
+  // Schedule an inspection
   scheduleInspection: async (data) => {
     try {
-      const response = await api.post('/verification/inspections', data);
-      return response;
+      const response = await api.post(`${API_URL}/inspections`, data);
+      return response.data;
     } catch (error) {
-      throw error;
+      console.error('Schedule inspection error:', error);
+      throw error.response?.data || { success: false, message: 'Failed to schedule inspection' };
     }
   },
 
-  // Update inspection
+  // Update an inspection
   updateInspection: async (inspectionId, data) => {
     try {
-      const response = await api.put(`/verification/inspections/${inspectionId}`, data);
-      return response;
+      const response = await api.put(`${API_URL}/inspections/${inspectionId}`, data);
+      return response.data;
     } catch (error) {
-      throw error;
+      console.error('Update inspection error:', error);
+      throw error.response?.data || { success: false, message: 'Failed to update inspection' };
+    }
+  },
+
+  // Get inspection details
+  getInspection: async (inspectionId) => {
+    try {
+      const response = await api.get(`${API_URL}/inspections/${inspectionId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get inspection error:', error);
+      throw error.response?.data || { success: false, message: 'Failed to fetch inspection details' };
+    }
+  },
+
+  // Get all inspections
+  getAllInspections: async () => {
+    try {
+      const response = await api.get(`${API_URL}/inspections`);
+      return response.data;
+    } catch (error) {
+      console.error('Get all inspections error:', error);
+      throw error.response?.data || { success: false, message: 'Failed to fetch inspections' };
     }
   }
 };

@@ -206,7 +206,7 @@ const RegulatoryDashboard = () => {
   };
 
   const handleScheduleInspection = async (projectId) => {
-    navigate(`/projects/${projectId}/inspection`);
+    navigate(`/projects/`);
   };
 
   if (loading) {
@@ -276,7 +276,7 @@ const RegulatoryDashboard = () => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/verification/inspections')}
+            onClick={() => handleScheduleInspection()}
             className="flex items-center gap-2 bg-white text-gray-700 px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-200"
           >
             <Calendar className="h-5 w-5" />
@@ -363,13 +363,13 @@ const RegulatoryDashboard = () => {
                           <XCircle className="h-3 w-3" />
                           Quick Reject
                         </button>
-                        <button
+                        {/* <button
                           onClick={() => handleScheduleInspection(project._id)}
                           className="flex items-center gap-1 px-3 py-1 text-purple-600 hover:text-purple-700 border border-purple-600 rounded-lg text-sm hover:bg-purple-50 transition-colors"
                         >
                           <Calendar className="h-3 w-3" />
                           Inspect
-                        </button>
+                        </button> */}
                       </div>
                     </motion.div>
                   );
@@ -382,9 +382,9 @@ const RegulatoryDashboard = () => {
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
-              <Link to="/verification/history" className="text-green-600 hover:text-green-700 font-medium">
+              {/* <Link to="/verification/history" className="text-green-600 hover:text-green-700 font-medium">
                 View All
-              </Link>
+              </Link> */}
             </div>
             
             {recentActivity.length === 0 ? (

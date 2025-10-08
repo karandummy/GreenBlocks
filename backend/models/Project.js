@@ -1,5 +1,14 @@
 const mongoose = require('mongoose');
 
+const mrvSchema = new mongoose.Schema({
+  reportName: String,
+  description: String,
+  ipfsHash: String,          // Metadata JSON CID
+  files: [String],           // Array of file CIDs
+  uploadedBy: String,        // Wallet address
+  uploadedAt: { type: Date, default: Date.now }
+});
+
 const projectSchema = new mongoose.Schema({
   projectId: {
     type: String,
@@ -28,6 +37,7 @@ const projectSchema = new mongoose.Schema({
   location: {
     country: { type: String, required: true },
     state: { type: String, required: true },
+    address: {type:String , required: true},
     coordinates: {
       latitude: Number,
       longitude: Number
@@ -67,10 +77,7 @@ const projectSchema = new mongoose.Schema({
     transactionHash: String,
     blockNumber: Number
   },
-  mrvData: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'MRVData'
-  }]
+  mrvData: [mrvSchema]
 }, {
   timestamps: true
 });

@@ -4,6 +4,8 @@ const projectController = require('../controllers/projectController');
 const authMiddleware = require('../middleware/auth');
 const roleCheck = require('../middleware/roleCheck');
 const multer = require('multer');
+const { uploadMRV , getMRVs } = require("../controllers/MRVController.js");
+
 
 const router = express.Router();
 
@@ -43,5 +45,8 @@ router.put('/:id', authMiddleware, roleCheck(['project_developer']), projectCont
 router.delete('/:id', authMiddleware, roleCheck(['project_developer']), projectController.deleteProject);
 router.post('/:id/documents', authMiddleware, roleCheck(['project_developer']), upload.array('documents', 10), projectController.uploadDocuments);
 router.post('/:id/mrv-data', authMiddleware, roleCheck(['project_developer']), projectController.submitMRVData);
+router.post("/upload", upload.array("files"), uploadMRV);
+router.get("/:projectId", getMRVs);
+
 
 module.exports = router;

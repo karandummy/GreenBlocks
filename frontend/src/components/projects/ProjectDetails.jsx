@@ -76,10 +76,22 @@ const ProjectDetails = () => {
     }
   };
 
-  const handleViewMRVData = (mrvData) => {
-    setSelectedMRV(mrvData);
-    setShowMRVModal(true);
-  };
+const handleViewMRVData = (mrvData) => {
+  if (!mrvData || !mrvData.files || mrvData.files.length === 0) {
+    alert("No files available for this MRV submission.");
+    return;
+  }
+
+  const ipfsGateway = "https://ipfs.io/ipfs/";
+
+  // Loop through each file CID and open it in a new tab
+  mrvData.files.forEach((fileCid) => {
+    const fileUrl = `${ipfsGateway}${fileCid}`;
+    window.open(fileUrl, "_blank");
+  });
+};
+
+
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -133,10 +145,19 @@ const ProjectDetails = () => {
     );
   }
 
-  const isOwner = user?._id === project.developer?._id;
-  const canEdit = isOwner && project.status === 'draft';
-  const canSubmit = isOwner && project.status === 'draft';
-  const canUploadMRV = isOwner && project.status === 'approved';
+
+const userId = user?._id; // safe access
+const developerId = project?.developer?._id; // safe access
+
+// console.log(userId);
+// console.log(developerId);
+
+const isOwner = userId === developerId;
+
+const canEdit = isOwner && project.status === 'draft';
+const canSubmit = isOwner && project.status === 'draft';
+const canUploadMRV = isOwner && project.status === 'approved';
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -218,6 +239,7 @@ const ProjectDetails = () => {
               <MapPin className="h-5 w-5 text-gray-400" />
               <div>
                 <p className="text-sm text-gray-600">Location</p>
+                <p className="font-medium">{project.location.address}</p>
                 <p className="font-medium">{project.location.state}, {project.location.country}</p>
               </div>
             </div>
@@ -291,7 +313,7 @@ const ProjectDetails = () => {
         </div>
 
         {/* Documentation */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        {/* <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Documentation</h3>
             {isOwner && (
@@ -328,89 +350,122 @@ const ProjectDetails = () => {
               <p>No documentation uploaded yet</p>
             </div>
           )}
-        </div>
+        </div> */}
 
         {/* MRV Data Section - Show only for approved projects */}
         {project.status === 'approved' && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">MRV Data</h3>
-              {isOwner && (
-                <button 
-                  onClick={() => navigate(`/projects/${id}/mrv-data`)}
-                  className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  <Database className="h-4 w-4" />
-                  Manage MRV Data
-                </button>
+  <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+    <div className="flex justify-between items-center mb-4">
+      <h3 className="text-lg font-semibold text-gray-900">MRV Data</h3>
+      {/* Optional: Show this only for project owners */}
+      {/* {isOwner && (
+        <button 
+          onClick={() => navigate(`/projects/${id}/mrv-data`)}
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+        >
+          <Database className="h-4 w-4" />
+          Manage MRV Data
+        </button>
+      )} */}
+    </div>
+
+    {project.mrvData && project.mrvData.length > 0 ? (
+      <div className="space-y-3">
+        <p className="text-sm text-gray-600 mb-3">Recent MRV submissions:</p>
+
+        {project.mrvData.slice(0, 5).map((mrv, index) => (
+          <div
+            key={index}
+            className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200"
+          >
+            <div className="flex-1">
+              {/* Report Title */}
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-medium text-gray-900">
+                  {mrv.reportName || `Report ${index + 1}`}
+                </p>
+                <span className="text-xs text-gray-500">
+                  Uploaded on {formatDate(mrv.uploadedAt)}
+                </span>
+              </div>
+
+              {/* Description */}
+              <p className="text-gray-700 mb-2">
+                {mrv.description || "No description provided."}
+              </p>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {/* <div>
+                  <p className="text-gray-600">Uploaded By:</p>
+                  <p className="text-blue-700 font-medium">
+                    {mrv.uploadedBy || "Unknown"}
+                  </p>
+                </div> */}
+                <div>
+                  <p className="text-gray-600">Files:</p>
+                  <p className="text-blue-700 font-medium">
+                    {mrv.files?.length > 0
+                      ? `${mrv.files.length} file${mrv.files.length > 1 ? "s" : ""}`
+                      : "No files"}
+                  </p>
+                </div>
+              </div>
+
+              {/* IPFS Metadata */}
+              {mrv.ipfsHash && (
+                <p className="text-xs text-gray-500 mt-2">
+                  IPFS Metadata:{" "}
+                  <a
+                    href={`https://ipfs.io/ipfs/${mrv.ipfsHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    {mrv.ipfsHash.slice(0, 15)}...
+                  </a>
+                </p>
               )}
             </div>
 
-            {project.mrvData && project.mrvData.length > 0 ? (
-              <div className="space-y-3">
-                <p className="text-sm text-gray-600 mb-3">Recent monitoring data submissions:</p>
-                {project.mrvData.slice(0, 5).map((mrv, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="font-medium text-gray-900">
-                          Reporting Period: {formatDate(mrv.reportingPeriod.startDate)} - {formatDate(mrv.reportingPeriod.endDate)}
-                        </p>
-                        {getVerificationStatusBadge(mrv.verification?.status)}
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-600">Emission Reduction:</p>
-                          <p className="text-blue-700 font-medium">
-                            {formatNumber(mrv.emissionReductions?.reduction || 0)} tCO₂
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-600">Measurements:</p>
-                          <p className="text-blue-700 font-medium">
-                            {mrv.measurements?.length || 0} parameters
-                          </p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2">
-                        Uploaded on {formatDate(mrv.createdAt)}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleViewMRVData(mrv)}
-                      className="ml-4 flex items-center gap-1 px-3 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
-                    >
-                      <Eye className="h-4 w-4" />
-                      View
-                    </button>
-                  </div>
-                ))}
-                {project.mrvData.length > 5 && (
-                  <div className="text-center pt-4">
-                    <button
-                      onClick={() => navigate(`/projects/${id}/mrv-data`)}
-                      className="text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      View all {project.mrvData.length} MRV submissions →
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Database className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 mb-4">No MRV data uploaded yet</p>
-                <button
-                  onClick={() => navigate(`/projects/${id}/mrv-data`)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Database className="h-4 w-4" />
-                  Upload First MRV Data
-                </button>
-              </div>
-            )}
+            <button
+              onClick={() => handleViewMRVData(mrv)}
+              className="ml-4 flex items-center gap-1 px-3 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
+            >
+              <Eye className="h-4 w-4" />
+              View
+            </button>
+          </div>
+        ))}
+
+        {/* "View All" button if more than 5 */}
+        {project.mrvData.length > 5 && (
+          <div className="text-center pt-4">
+            <button
+              onClick={() => navigate(`/projects/${id}/mrv-data`)}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              View all {project.mrvData.length} MRV submissions →
+            </button>
           </div>
         )}
+      </div>
+    ) : (
+      <div className="text-center py-8">
+        <Database className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500 mb-4">No MRV data uploaded yet</p>
+        <button
+          onClick={() => navigate(`/projects/${id}/mrv-data`)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Database className="h-4 w-4" />
+          Upload MRV Data
+        </button>
+      </div>
+    )}
+  </div>
+)}
+
 
         {/* Verification Status */}
         {project.verification && (
@@ -509,216 +564,6 @@ const ProjectDetails = () => {
         </div>
       </Modal>
 
-      {/* MRV Data Details Modal */}
-      <Modal
-        isOpen={showMRVModal}
-        onClose={() => setShowMRVModal(false)}
-        title="MRV Data Details"
-        maxWidth="max-w-4xl"
-      >
-        {selectedMRV && (
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Reporting Period: {formatDate(selectedMRV.reportingPeriod.startDate)} - {formatDate(selectedMRV.reportingPeriod.endDate)}
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Submitted on {formatDate(selectedMRV.createdAt)}
-                </p>
-              </div>
-              {getVerificationStatusBadge(selectedMRV.verification?.status)}
-            </div>
-
-            {/* Emission Reductions */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <h4 className="font-medium text-green-900 mb-3">Emission Reductions</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm text-green-700">Baseline Emissions</p>
-                  <p className="text-lg font-semibold text-green-900">
-                    {formatNumber(selectedMRV.emissionReductions.baseline)} tCO₂
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-green-700">Actual Emissions</p>
-                  <p className="text-lg font-semibold text-green-900">
-                    {formatNumber(selectedMRV.emissionReductions.actual)} tCO₂
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-green-700">Emission Reduction</p>
-                  <p className="text-lg font-semibold text-green-900">
-                    {formatNumber(selectedMRV.emissionReductions.reduction)} tCO₂
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3">
-                <p className="text-sm text-green-700">Methodology</p>
-                <p className="text-green-900">{selectedMRV.emissionReductions.methodology}</p>
-              </div>
-            </div>
-
-            {/* Measurements */}
-            <div>
-              <h4 className="font-medium text-gray-900 mb-3">
-                Measurements ({selectedMRV.measurements?.length || 0} parameters)
-              </h4>
-              {selectedMRV.measurements && selectedMRV.measurements.length > 0 ? (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="grid grid-cols-1 gap-4">
-                    {selectedMRV.measurements.map((measurement, index) => (
-                      <div key={index} className="bg-white p-4 rounded-lg border">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div>
-                            <p className="text-sm text-gray-600">Parameter</p>
-                            <p className="font-medium text-gray-900">{measurement.parameter}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Value</p>
-                            <p className="font-medium text-gray-900">
-                              {formatNumber(measurement.value)} {measurement.unit}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Measurement Date</p>
-                            <p className="font-medium text-gray-900">
-                              {formatDate(measurement.measurementDate)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-600">Equipment</p>
-                            <p className="font-medium text-gray-900">
-                              {measurement.equipment || 'Not specified'}
-                            </p>
-                          </div>
-                        </div>
-                        {measurement.methodology && (
-                          <div className="mt-3">
-                            <p className="text-sm text-gray-600">Methodology</p>
-                            <p className="text-gray-900">{measurement.methodology}</p>
-                          </div>
-                        )}
-                        {measurement.accuracy && (
-                          <div className="mt-2">
-                            <p className="text-sm text-gray-600">Accuracy</p>
-                            <p className="text-gray-900">{measurement.accuracy}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">No measurements recorded</p>
-              )}
-            </div>
-
-            {/* Verification Details */}
-            {selectedMRV.verification && (
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Verification Details</h4>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-blue-700">Status</p>
-                      <div className="mt-1">
-                        {getVerificationStatusBadge(selectedMRV.verification.status)}
-                      </div>
-                    </div>
-                    {selectedMRV.verification.verificationDate && (
-                      <div>
-                        <p className="text-sm text-blue-700">Verification Date</p>
-                        <p className="font-medium text-blue-900">
-                          {formatDate(selectedMRV.verification.verificationDate)}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  {selectedMRV.verification.comments && (
-                    <div className="mt-3">
-                      <p className="text-sm text-blue-700">Comments</p>
-                      <p className="text-blue-900 mt-1">{selectedMRV.verification.comments}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Documentation */}
-            {selectedMRV.documentation && selectedMRV.documentation.length > 0 && (
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Supporting Documentation</h4>
-                <div className="space-y-2">
-                  {selectedMRV.documentation.map((doc, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-gray-400" />
-                        <div>
-                          <p className="font-medium text-gray-900">{doc.fileName}</p>
-                          <p className="text-sm text-gray-600">
-                            {doc.fileType} • Uploaded on {formatDate(doc.uploadDate)}
-                          </p>
-                        </div>
-                      </div>
-                      <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700">
-                        <Download className="h-4 w-4" />
-                        Download
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Blockchain Info */}
-            {selectedMRV.blockchain && (selectedMRV.blockchain.transactionHash || selectedMRV.blockchain.ipfsHash) && (
-              <div>
-                <h4 className="font-medium text-gray-900 mb-3">Blockchain Information</h4>
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                  <div className="grid grid-cols-1 gap-3">
-                    {selectedMRV.blockchain.transactionHash && (
-                      <div>
-                        <p className="text-sm text-purple-700">Transaction Hash</p>
-                        <p className="font-mono text-sm text-purple-900 break-all">
-                          {selectedMRV.blockchain.transactionHash}
-                        </p>
-                      </div>
-                    )}
-                    {selectedMRV.blockchain.blockNumber && (
-                      <div>
-                        <p className="text-sm text-purple-700">Block Number</p>
-                        <p className="font-mono text-sm text-purple-900">
-                          {selectedMRV.blockchain.blockNumber}
-                        </p>
-                      </div>
-                    )}
-                    {selectedMRV.blockchain.ipfsHash && (
-                      <div>
-                        <p className="text-sm text-purple-700">IPFS Hash</p>
-                        <p className="font-mono text-sm text-purple-900 break-all">
-                          {selectedMRV.blockchain.ipfsHash}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Close Button */}
-            <div className="flex justify-end pt-4 border-t">
-              <button
-                onClick={() => setShowMRVModal(false)}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 };

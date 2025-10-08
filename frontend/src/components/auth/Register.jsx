@@ -1,23 +1,21 @@
 import React, { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { UserPlus, Mail, Lock, User, Building, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Mail, User, Building, Wallet } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 
 const Register = () => {
-  const { user, register } = useAuth();
+  const { user, register, connectWallet, verifyWallet } = useAuth();
   const [formData, setFormData] = useState({
+    walletAddress: '',
     name: '',
     email: '',
-    password: '',
-    confirmPassword: '',
     role: '',
     organization: ''
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [walletConnected, setWalletConnected] = useState(false);
 
   // Redirect if already logged in
   if (user) {
@@ -25,10 +23,42 @@ const Register = () => {
   }
 
   const roles = [
-    { value: 'project_developer', label: 'Project Developer', desc: 'Create and manage carbon offset projects' },
-    { value: 'credit_buyer', label: 'Credit Buyer', desc: 'Purchase carbon credits for offsetting' },
-    { value: 'regulatory_body', label: 'Regulatory Body', desc: 'Verify and audit carbon projects' }
+    { value: 'project_developer', label: 'project_developer', desc: 'Create and manage carbon offset projects' },
+    { value: 'credit_buyer', label: 'credit_buyer', desc: 'Purchase carbon credits for offsetting' },
+    { value: 'regulatory_body', label: 'regulatory_body', desc: 'Verify and audit carbon projects' }
   ];
+
+
+  const handleConnectWallet = async () => {
+    try {
+      const address = await connectWallet();
+      
+      // Check if wallet is already registered
+      const walletCheck = await verifyWallet(address);
+      
+      if (walletCheck.exists) {
+        toast.error('This wallet is already registered. Please login instead.');
+        return;
+      }
+
+      setFormData({
+        ...formData,
+        walletAddress: address
+      });
+      setWalletConnected(true);
+      toast.success('Wallet connected successfully!');
+    } catch (error) {
+      console.error('Wallet connection error:', error);
+      
+      if (error.message.includes('MetaMask')) {
+        toast.error('Please install MetaMask to continue');
+      } else if (error.message.includes('rejected')) {
+        toast.error('Connection request rejected');
+      } else {
+        toast.error(error.message || 'Failed to connect wallet');
+      }
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({
@@ -40,21 +70,15 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (!formData.walletAddress) {
+      toast.error('Please connect your wallet first');
       return;
     }
 
     setLoading(true);
 
     try {
-      const { confirmPassword, ...registerData } = formData;
-      const result = await register(registerData);
+      const result = await register(formData);
       
       if (result.success) {
         toast.success('Registration successful!');
@@ -91,9 +115,51 @@ const Register = () => {
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
+            {/* Wallet Connection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Wallet Address *
+              </label>
+              
+              {!walletConnected ? (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="button"
+                  onClick={handleConnectWallet}
+                  className="w-full flex justify-center items-center py-3 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200"
+                >
+                  <Wallet className="w-5 h-5 mr-2" />
+                  Connect MetaMask Wallet
+                </motion.button>
+              ) : (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
+                      <div>
+                        <p className="text-sm font-medium text-green-800">Wallet Connected</p>
+                        <p className="text-xs text-green-600 font-mono">
+                          {formData.walletAddress.slice(0, 8)}...{formData.walletAddress.slice(-6)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleConnectWallet}
+                      className="text-xs text-green-600 hover:text-green-700 underline"
+                    >
+                      Change
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Name Field */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
+                Full Name *
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -112,9 +178,10 @@ const Register = () => {
               </div>
             </div>
 
+            {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
+                Email Address *
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -133,6 +200,7 @@ const Register = () => {
               </div>
             </div>
 
+            {/* Organization Field */}
             <div>
               <label htmlFor="organization" className="block text-sm font-medium text-gray-700 mb-2">
                 Organization
@@ -145,7 +213,6 @@ const Register = () => {
                   id="organization"
                   name="organization"
                   type="text"
-                  required
                   value={formData.organization}
                   onChange={handleChange}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
@@ -154,9 +221,10 @@ const Register = () => {
               </div>
             </div>
 
+            {/* Role Selection */}
             <div>
               <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                Role
+                Role *
               </label>
               <select
                 id="role"
@@ -173,78 +241,20 @@ const Register = () => {
                   </option>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="block w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                  placeholder="Enter your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
-                  required
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="block w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                  placeholder="Confirm your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                  )}
-                </button>
-              </div>
+              {formData.role && (
+                <p className="mt-2 text-xs text-gray-500">
+                  {roles.find(r => r.value === formData.role)?.desc}
+                </p>
+              )}
             </div>
           </div>
 
+          {/* Submit Button */}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             type="submit"
-            disabled={loading}
+            disabled={loading || !walletConnected}
             className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
           >
             {loading ? (
@@ -254,6 +264,7 @@ const Register = () => {
             )}
           </motion.button>
 
+          {/* Login Link */}
           <div className="text-center">
             <p className="text-sm text-gray-600">
               Already have an account?{' '}
