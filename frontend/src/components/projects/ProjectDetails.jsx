@@ -2,24 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  ArrowLeft, 
-  MapPin, 
-  Calendar, 
-  Award, 
-  FileText, 
-  Download,
-  Edit,
-  Send,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Upload,
-  Database,
-  Eye,
-  X
+  ArrowLeft, MapPin, Calendar, Award, FileText, Download,
+  Edit, Send, CheckCircle, XCircle, Clock, Upload,
+  Database, Eye, X, DollarSign, AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { projectService } from '../../services/project.service';
+import { creditClaimService } from '../../services/creditClaim.service';
 import { useAuth } from '../../hooks/useAuth';
 import { formatDate, formatNumber } from '../../utils/helpers';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -33,12 +22,22 @@ const ProjectDetails = () => {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [showMRVModal, setShowMRVModal] = useState(false);
-  const [selectedMRV, setSelectedMRV] = useState(null);
+  const [showClaimModal, setShowClaimModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [projectClaims, setProjectClaims] = useState([]);
+  
+  // Claim form state
+  const [claimForm, setClaimForm] = useState({
+    creditsRequested: '',
+    reportingPeriod: {
+      startDate: '',
+      endDate: ''
+    }
+  });
 
   useEffect(() => {
     fetchProjectDetails();
+    fetchProjectClaims();
   }, [id]);
 
   const fetchProjectDetails = async () => {
@@ -60,6 +59,18 @@ const ProjectDetails = () => {
     }
   };
 
+  const fetchProjectClaims = async () => {
+    try {
+      const response = await creditClaimService.getMyClaims();
+      if (response.success) {
+        const claims = response.claims.filter(claim => claim.project._id === id);
+        setProjectClaims(claims);
+      }
+    } catch (error) {
+      console.error('Fetch claims error:', error);
+    }
+  };
+
   const handleSubmitForVerification = async () => {
     try {
       setSubmitting(true);
@@ -76,22 +87,70 @@ const ProjectDetails = () => {
     }
   };
 
-const handleViewMRVData = (mrvData) => {
-  if (!mrvData || !mrvData.files || mrvData.files.length === 0) {
-    alert("No files available for this MRV submission.");
-    return;
-  }
+  const handleClaimCredits = async () => {
+    try {
+      if (!claimForm.creditsRequested || !claimForm.reportingPeriod.startDate || !claimForm.reportingPeriod.endDate) {
+        toast.error('Please fill all required fields');
+        return;
+      }
 
-  const ipfsGateway = "https://ipfs.io/ipfs/";
+      const creditsRequested = parseFloat(claimForm.creditsRequested);
+      if (creditsRequested <= 0) {
+        toast.error('Credits requested must be greater than zero');
+        return;
+      }
 
-  // Loop through each file CID and open it in a new tab
-  mrvData.files.forEach((fileCid) => {
-    const fileUrl = `${ipfsGateway}${fileCid}`;
-    window.open(fileUrl, "_blank");
-  });
-};
+      if (creditsRequested > project.projectDetails.expectedCredits) {
+        toast.error('Credits requested cannot exceed expected credits');
+        return;
+      }
 
+      setSubmitting(true);
+      
+      // Get MRV data references
+      const mrvDataRefs = project.mrvData?.map(mrv => mrv.ipfsHash).filter(Boolean) || [];
+      
+      const claimData = {
+        projectId: id,
+        creditsRequested,
+        reportingPeriod: claimForm.reportingPeriod,
+        mrvDataRefs
+      };
 
+      const response = await creditClaimService.createClaim(claimData);
+      
+      if (response.success) {
+        toast.success('Credit claim submitted successfully!');
+        setShowClaimModal(false);
+        setClaimForm({
+          creditsRequested: '',
+          reportingPeriod: { startDate: '', endDate: '' }
+        });
+        // Refresh claims
+        fetchProjectClaims();
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
+      }
+    } catch (error) {
+      toast.error(error.message || 'Failed to submit credit claim');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleViewMRVData = (mrvData) => {
+    if (!mrvData || !mrvData.files || mrvData.files.length === 0) {
+      alert("No files available for this MRV submission.");
+      return;
+    }
+
+    const ipfsGateway = "https://ipfs.io/ipfs/";
+    mrvData.files.forEach((fileCid) => {
+      const fileUrl = `${ipfsGateway}${fileCid}`;
+      window.open(fileUrl, "_blank");
+    });
+  };
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -119,19 +178,13 @@ const handleViewMRVData = (mrvData) => {
     return type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  const getVerificationStatusBadge = (status) => {
-    const statusColors = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      verified: 'bg-green-100 text-green-800',
-      rejected: 'bg-red-100 text-red-800'
-    };
-    
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[status] || statusColors.pending}`}>
-        {status?.charAt(0).toUpperCase() + status?.slice(1) || 'Pending'}
-      </span>
-    );
-  };
+  // Check if there's an approved claim
+  const hasApprovedClaim = projectClaims.some(claim => claim.status === 'approved');
+  
+  // Check if there's a pending claim
+  const hasPendingClaim = projectClaims.some(claim => 
+    ['pending', 'under_review', 'inspection_scheduled', 'inspection_completed'].includes(claim.status)
+  );
 
   if (loading) {
     return <LoadingSpinner text="Loading project details..." />;
@@ -145,19 +198,14 @@ const handleViewMRVData = (mrvData) => {
     );
   }
 
+  const userId = user?._id;
+  const developerId = project?.developer?._id;
+  const isOwner = userId === developerId;
 
-const userId = user?._id; // safe access
-const developerId = project?.developer?._id; // safe access
-
-// console.log(userId);
-// console.log(developerId);
-
-const isOwner = userId === developerId;
-
-const canEdit = isOwner && project.status === 'draft';
-const canSubmit = isOwner && project.status === 'draft';
-const canUploadMRV = isOwner && project.status === 'approved';
-
+  const canEdit = isOwner && project.status === 'draft';
+  const canSubmit = isOwner && project.status === 'draft';
+  const canUploadMRV = isOwner && project.status === 'approved' && !hasApprovedClaim;
+  const canClaimCredits = isOwner && project.status === 'approved' && project.mrvData?.length > 0 && !hasPendingClaim && !hasApprovedClaim;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -204,6 +252,18 @@ const canUploadMRV = isOwner && project.status === 'approved';
                 Upload MRV Data
               </motion.button>
             )}
+
+            {canClaimCredits && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowClaimModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-xl"
+              >
+                <DollarSign className="h-4 w-4" />
+                Claim Credits
+              </motion.button>
+            )}
           </div>
         </div>
 
@@ -217,15 +277,60 @@ const canUploadMRV = isOwner && project.status === 'approved';
             {getStatusBadge(project.status)}
           </div>
 
+          {/* Show approved claim completion message */}
+          {hasApprovedClaim && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="text-green-800 font-medium">Credits Claimed Successfully!</p>
+                  <p className="text-green-700 text-sm">
+                    Your credit claim has been approved and credits have been issued. This project is now completed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Show pending claim message */}
+          {hasPendingClaim && !hasApprovedClaim && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-yellow-600" />
+                <div>
+                  <p className="text-yellow-800 font-medium">Credit Claim In Progress</p>
+                  <p className="text-yellow-700 text-sm">
+                    Your credit claim is being processed. You cannot submit another claim until this one is completed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Show approved status message */}
-          {project.status === 'approved' && (
+          {project.status === 'approved' && !hasApprovedClaim && !hasPendingClaim && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
               <div className="flex items-center gap-3">
                 <CheckCircle className="h-5 w-5 text-green-600" />
                 <div>
                   <p className="text-green-800 font-medium">Project Approved!</p>
                   <p className="text-green-700 text-sm">
-                    Your project has been approved. You can now upload MRV data to start generating carbon credits.
+                    Your project has been approved. Upload MRV data and claim credits when ready.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Show MRV data requirement for claiming */}
+          {project.status === 'approved' && (!project.mrvData || project.mrvData.length === 0) && !hasApprovedClaim && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-blue-600" />
+                <div>
+                  <p className="text-blue-800 font-medium">MRV Data Required</p>
+                  <p className="text-blue-700 text-sm">
+                    Upload MRV data before claiming credits.
                   </p>
                 </div>
               </div>
@@ -263,6 +368,58 @@ const canUploadMRV = isOwner && project.status === 'approved';
             </div>
           </div>
         </div>
+
+        {/* Claims History Section */}
+        {projectClaims.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Credit Claims History</h3>
+            <div className="space-y-3">
+              {projectClaims.map((claim, index) => (
+                <div
+                  key={claim._id}
+                  className={`p-4 rounded-lg border ${
+                    claim.status === 'approved' ? 'bg-green-50 border-green-200' :
+                    claim.status === 'rejected' ? 'bg-red-50 border-red-200' :
+                    'bg-blue-50 border-blue-200'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        Claim #{claim.claimId}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {formatNumber(claim.claimDetails.creditsRequested)} tCO₂ requested
+                      </p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      claim.status === 'approved' ? 'bg-green-100 text-green-800' :
+                      claim.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {claim.status.replace('_', ' ').toUpperCase()}
+                    </span>
+                  </div>
+                  
+                  {claim.status === 'approved' && claim.creditIssuance?.approvedCredits && (
+                    <div className="bg-green-100 border border-green-200 rounded p-2 mt-2">
+                      <p className="text-sm text-green-800 font-medium">
+                        ✓ {formatNumber(claim.creditIssuance.approvedCredits)} credits issued
+                      </p>
+                      <p className="text-xs text-green-700">
+                        Issued on: {formatDate(claim.creditIssuance.issuedAt)}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-gray-500 mt-2">
+                    Submitted: {formatDate(claim.createdAt)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Project Details */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -312,160 +469,100 @@ const canUploadMRV = isOwner && project.status === 'approved';
           </div>
         </div>
 
-        {/* Documentation */}
-        {/* <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Documentation</h3>
-            {isOwner && (
-              <button className="flex items-center gap-2 text-green-600 hover:text-green-700">
-                <Upload className="h-4 w-4" />
-                Upload Files
-              </button>
+        {/* MRV Data Section */}
+        {project.status === 'approved' && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">MRV Data</h3>
+            </div>
+
+            {project.mrvData && project.mrvData.length > 0 ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600 mb-3">Recent MRV submissions:</p>
+
+                {project.mrvData.slice(0, 5).map((mrv, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium text-gray-900">
+                          {mrv.reportName || `Report ${index + 1}`}
+                        </p>
+                        <span className="text-xs text-gray-500">
+                          Uploaded on {formatDate(mrv.uploadedAt)}
+                        </span>
+                      </div>
+
+                      <p className="text-gray-700 mb-2">
+                        {mrv.description || "No description provided."}
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-600">Files:</p>
+                          <p className="text-blue-700 font-medium">
+                            {mrv.files?.length > 0
+                              ? `${mrv.files.length} file${mrv.files.length > 1 ? "s" : ""}`
+                              : "No files"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {mrv.ipfsHash && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          IPFS Metadata:{" "}
+                          <a
+                            href={`https://ipfs.io/ipfs/${mrv.ipfsHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                          >
+                            {mrv.ipfsHash.slice(0, 15)}...
+                          </a>
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleViewMRVData(mrv)}
+                      className="ml-4 flex items-center gap-1 px-3 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View
+                    </button>
+                  </div>
+                ))}
+
+                {project.mrvData.length > 5 && (
+                  <div className="text-center pt-4">
+                    <button
+                      onClick={() => navigate(`/projects/${id}/mrv-data`)}
+                      className="text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      View all {project.mrvData.length} MRV submissions →
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Database className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-4">No MRV data uploaded yet</p>
+                {canUploadMRV && (
+                  <button
+                    onClick={() => navigate(`/projects/${id}/mrv-data`)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Database className="h-4 w-4" />
+                    Upload MRV Data
+                  </button>
+                )}
+              </div>
             )}
           </div>
-
-          {project.documentation && project.documentation.length > 0 ? (
-            <div className="space-y-2">
-              {project.documentation.map((doc, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-gray-400" />
-                    <div>
-                      <p className="font-medium text-gray-900">{doc.fileName}</p>
-                      <p className="text-sm text-gray-600">
-                        Uploaded on {formatDate(doc.uploadDate)}
-                      </p>
-                    </div>
-                  </div>
-                  <button className="flex items-center gap-2 text-blue-600 hover:text-blue-700">
-                    <Download className="h-4 w-4" />
-                    Download
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-              <p>No documentation uploaded yet</p>
-            </div>
-          )}
-        </div> */}
-
-        {/* MRV Data Section - Show only for approved projects */}
-        {project.status === 'approved' && (
-  <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-    <div className="flex justify-between items-center mb-4">
-      <h3 className="text-lg font-semibold text-gray-900">MRV Data</h3>
-      {/* Optional: Show this only for project owners */}
-      {/* {isOwner && (
-        <button 
-          onClick={() => navigate(`/projects/${id}/mrv-data`)}
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-        >
-          <Database className="h-4 w-4" />
-          Manage MRV Data
-        </button>
-      )} */}
-    </div>
-
-    {project.mrvData && project.mrvData.length > 0 ? (
-      <div className="space-y-3">
-        <p className="text-sm text-gray-600 mb-3">Recent MRV submissions:</p>
-
-        {project.mrvData.slice(0, 5).map((mrv, index) => (
-          <div
-            key={index}
-            className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200"
-          >
-            <div className="flex-1">
-              {/* Report Title */}
-              <div className="flex items-center justify-between mb-2">
-                <p className="font-medium text-gray-900">
-                  {mrv.reportName || `Report ${index + 1}`}
-                </p>
-                <span className="text-xs text-gray-500">
-                  Uploaded on {formatDate(mrv.uploadedAt)}
-                </span>
-              </div>
-
-              {/* Description */}
-              <p className="text-gray-700 mb-2">
-                {mrv.description || "No description provided."}
-              </p>
-
-              {/* Info Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                {/* <div>
-                  <p className="text-gray-600">Uploaded By:</p>
-                  <p className="text-blue-700 font-medium">
-                    {mrv.uploadedBy || "Unknown"}
-                  </p>
-                </div> */}
-                <div>
-                  <p className="text-gray-600">Files:</p>
-                  <p className="text-blue-700 font-medium">
-                    {mrv.files?.length > 0
-                      ? `${mrv.files.length} file${mrv.files.length > 1 ? "s" : ""}`
-                      : "No files"}
-                  </p>
-                </div>
-              </div>
-
-              {/* IPFS Metadata */}
-              {mrv.ipfsHash && (
-                <p className="text-xs text-gray-500 mt-2">
-                  IPFS Metadata:{" "}
-                  <a
-                    href={`https://ipfs.io/ipfs/${mrv.ipfsHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {mrv.ipfsHash.slice(0, 15)}...
-                  </a>
-                </p>
-              )}
-            </div>
-
-            <button
-              onClick={() => handleViewMRVData(mrv)}
-              className="ml-4 flex items-center gap-1 px-3 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
-            >
-              <Eye className="h-4 w-4" />
-              View
-            </button>
-          </div>
-        ))}
-
-        {/* "View All" button if more than 5 */}
-        {project.mrvData.length > 5 && (
-          <div className="text-center pt-4">
-            <button
-              onClick={() => navigate(`/projects/${id}/mrv-data`)}
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              View all {project.mrvData.length} MRV submissions →
-            </button>
-          </div>
         )}
-      </div>
-    ) : (
-      <div className="text-center py-8">
-        <Database className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-500 mb-4">No MRV data uploaded yet</p>
-        <button
-          onClick={() => navigate(`/projects/${id}/mrv-data`)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Database className="h-4 w-4" />
-          Upload MRV Data
-        </button>
-      </div>
-    )}
-  </div>
-)}
-
 
         {/* Verification Status */}
         {project.verification && (
@@ -564,6 +661,106 @@ const canUploadMRV = isOwner && project.status === 'approved';
         </div>
       </Modal>
 
+      {/* Claim Credits Modal */}
+      <Modal
+        isOpen={showClaimModal}
+        onClose={() => setShowClaimModal(false)}
+        title="Claim Carbon Credits"
+        maxWidth="max-w-lg"
+      >
+        <div className="space-y-4">
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <p className="text-purple-800 text-sm font-medium">
+              Submit a claim for carbon credits based on your MRV data
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Credits Requested (tCO₂) <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              value={claimForm.creditsRequested}
+              onChange={(e) => setClaimForm({ ...claimForm, creditsRequested: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Enter credits to claim"
+              min="0"
+              step="0.01"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Expected credits: {formatNumber(project.projectDetails.expectedCredits)} tCO₂
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reporting Period Start <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={claimForm.reportingPeriod.startDate}
+                onChange={(e) => setClaimForm({ 
+                  ...claimForm, 
+                  reportingPeriod: { ...claimForm.reportingPeriod, startDate: e.target.value }
+                })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reporting Period End <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={claimForm.reportingPeriod.endDate}
+                onChange={(e) => setClaimForm({ 
+                  ...claimForm, 
+                  reportingPeriod: { ...claimForm.reportingPeriod, endDate: e.target.value }
+                })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-blue-800 text-sm">
+              <strong>MRV Data:</strong> {project.mrvData?.length || 0} submissions will be included with this claim
+            </p>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-yellow-800 text-sm">
+              <strong>Note:</strong> Once submitted, your claim will be reviewed by regulatory bodies. 
+              An inspection may be scheduled before credits are issued.
+            </p>
+          </div>
+          
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setShowClaimModal(false)}
+              disabled={submitting}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleClaimCredits}
+              disabled={submitting}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {submitting ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <DollarSign className="h-4 w-4" />
+              )}
+              {submitting ? 'Submitting...' : 'Submit Claim'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

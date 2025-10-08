@@ -2,21 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  Plus, 
-  FileText, 
-  TrendingUp, 
-  Award, 
-  Upload,
-  Eye,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Edit,
-  Send
+  Plus, FileText, TrendingUp, Award, Upload, Eye, Clock,
+  CheckCircle, XCircle, Edit, Send, DollarSign, AlertCircle,
+  Calendar, MapPin
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProjects } from '../../hooks/useProjects';
-import { creditService } from '../../services/credit.service';
+import { creditClaimService } from '../../services/creditClaim.service';
 import { toast } from 'react-hot-toast';
 import { formatDate, formatNumber } from '../../utils/helpers';
 
@@ -24,47 +16,56 @@ const ProjectDeveloperDashboard = () => {
   const { user } = useAuth();
   const { projects, loading, fetchMyProjects } = useProjects();
   const navigate = useNavigate();
+  console.log(projects);
   
   const [stats, setStats] = useState({
     totalProjects: 0,
     activeProjects: 0,
-    totalCredits: 0,
+    totalClaims: 0,
+    pendingClaims: 0,
+    approvedClaims: 0,
     pendingVerification: 0
   });
-  const [myCredits, setMyCredits] = useState([]);
+  const [myClaims, setMyClaims] = useState([]);
 
   useEffect(() => {
     fetchMyProjects();
-    fetchMyCredits();
+    fetchMyClaims();
   }, []);
 
   useEffect(() => {
     if (projects.length > 0) {
       calculateStats();
     }
-  }, [projects]);
+  }, [projects, myClaims]);
 
   const calculateStats = () => {
     const totalProjects = projects.length;
     const activeProjects = projects.filter(p => ['approved', 'active'].includes(p.status)).length;
     const pendingVerification = projects.filter(p => ['submitted', 'under_review'].includes(p.status)).length;
     
+    const totalClaims = myClaims.length;
+    const pendingClaims = myClaims.filter(c => ['pending', 'under_review', 'inspection_scheduled'].includes(c.status)).length;
+    const approvedClaims = myClaims.filter(c => c.status === 'approved').length;
+    
     setStats({
       totalProjects,
       activeProjects,
-      totalCredits: myCredits.length,
+      totalClaims,
+      pendingClaims,
+      approvedClaims,
       pendingVerification
     });
   };
 
-  const fetchMyCredits = async () => {
+  const fetchMyClaims = async () => {
     try {
-      const response = await creditService.getMyCredits();
+      const response = await creditClaimService.getMyClaims();
       if (response.success) {
-        setMyCredits(response.credits || []);
+        setMyClaims(response.claims || []);
       }
     } catch (error) {
-      console.error('Failed to fetch credits:', error);
+      console.error('Failed to fetch claims:', error);
     }
   };
 
@@ -92,10 +93,34 @@ const ProjectDeveloperDashboard = () => {
       submitted: { color: 'bg-blue-100 text-blue-800', icon: Send, text: 'Submitted' },
       under_review: { color: 'bg-yellow-100 text-yellow-800', icon: Clock, text: 'Under Review' },
       approved: { color: 'bg-green-100 text-green-800', icon: CheckCircle, text: 'Approved' },
-      rejected: { color: 'bg-red-100 text-red-800', icon: XCircle, text: 'Rejected' }
+      rejected: { color: 'bg-red-100 text-red-800', icon: XCircle, text: 'Rejected' },
+      completed: { color: 'bg-indigo-100 text-indigo-800', icon: CheckCircle, text: 'Completed' }
+
     };
 
     const config = statusConfig[status] || statusConfig.draft;
+    const Icon = config.icon;
+    
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
+        <Icon className="h-3 w-3" />
+        {config.text}
+      </span>
+    );
+  };
+
+  const getClaimStatusBadge = (status) => {
+    const statusConfig = {
+      pending: { color: 'bg-yellow-100 text-yellow-800', icon: Clock, text: 'Pending Review' },
+      under_review: { color: 'bg-blue-100 text-blue-800', icon: Eye, text: 'Under Review' },
+      inspection_scheduled: { color: 'bg-purple-100 text-purple-800', icon: Calendar, text: 'Inspection Scheduled' },
+      inspection_completed: { color: 'bg-indigo-100 text-indigo-800', icon: CheckCircle, text: 'Inspection Done' },
+      approved: { color: 'bg-green-100 text-green-800', icon: CheckCircle, text: 'Approved' },
+      rejected: { color: 'bg-red-100 text-red-800', icon: XCircle, text: 'Rejected' },
+      completed: { color: 'bg-indigo-100 text-indigo-800', icon: CheckCircle, text: 'Completed' }
+    };
+
+    const config = statusConfig[status] || statusConfig.pending;
     const Icon = config.icon;
     
     return (
@@ -122,7 +147,7 @@ const ProjectDeveloperDashboard = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Welcome back, {user?.name}!
           </h1>
-          <p className="text-gray-600">Manage your carbon offset projects and track performance</p>
+          <p className="text-gray-600">Manage your carbon offset projects and track credit claims</p>
         </div>
 
         {/* Stats Grid */}
@@ -141,15 +166,14 @@ const ProjectDeveloperDashboard = () => {
             color="bg-green-500"
           />
           <StatCard
-            title="Carbon Credits"
-            value={stats.totalCredits}
-            icon={Award}
+            title="Credit Claims"
+            value={stats.totalClaims}
+            icon={DollarSign}
             color="bg-purple-500"
-            onClick={() => navigate('/credits')}
           />
           <StatCard
-            title="Pending Verification"
-            value={stats.pendingVerification}
+            title="Pending Claims"
+            value={stats.pendingClaims}
             icon={Clock}
             color="bg-orange-500"
           />
@@ -166,22 +190,6 @@ const ProjectDeveloperDashboard = () => {
             <Plus className="h-5 w-5" />
             New Project
           </motion.button>
-          {/* <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => {
-              const approvedProjects = projects.filter(p => p.status === 'approved');
-              if (approvedProjects.length > 0) {
-                navigate(`/projects/${approvedProjects[0]._id}/mrv-data`);
-              } else {
-                toast.error('No approved projects available for MRV data submission');
-              }
-            }}
-            className="flex items-center gap-2 bg-white text-gray-700 px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-200"
-          >
-            <Upload className="h-5 w-5" />
-            Upload MRV Data
-          </motion.button> */}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -231,41 +239,101 @@ const ProjectDeveloperDashboard = () => {
             )}
           </div>
 
-          {/* Recent Credits */}
+          {/* Credit Claims */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">My Carbon Credits</h2>
-              <Link to="/credits" className="text-green-600 hover:text-green-700 font-medium">
-                View All
-              </Link>
+              <h2 className="text-xl font-bold text-gray-900">Credit Claims</h2>
+              {myClaims.length > 5 && (
+                <button className="text-purple-600 hover:text-purple-700 font-medium">
+                  View All
+                </button>
+              )}
             </div>
             
-            {myCredits.length === 0 ? (
+            {myClaims.length === 0 ? (
               <div className="text-center py-8">
-                <Award className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 mb-4">No credits claimed yet</p>
+                <DollarSign className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-4">No credit claims yet</p>
                 <p className="text-sm text-gray-400">
-                  Complete and get your projects approved to claim credits
+                  Upload MRV data and claim credits from approved projects
                 </p>
               </div>
             ) : (
               <div className="space-y-4">
-                {myCredits.slice(0, 5).map((credit) => (
-                  <div key={credit._id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                    <div>
-                      <h4 className="font-medium text-gray-900">{credit.project?.name}</h4>
-                      <p className="text-sm text-gray-600">
-                        {formatNumber(credit.amount)} credits • Vintage {credit.vintage}
-                      </p>
+                {myClaims.slice(0, 5).map((claim) => (
+                  <div key={claim._id} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 mb-1">
+                          {claim.project?.name || 'Project'}
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          {formatNumber(claim.claimDetails.creditsRequested)} tCO₂ requested
+                        </p>
+                      </div>
+                      {getClaimStatusBadge(claim.status)}
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-green-600">{credit.status}</p>
-                      <p className="text-sm text-gray-500">{formatDate(credit.createdAt)}</p>
+
+                    {/* Show inspection date if scheduled */}
+                    {claim.inspection?.scheduledDate && claim.status === 'inspection_scheduled' && (
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-2 mb-2">
+                        <p className="text-xs text-purple-800">
+                          <Calendar className="h-3 w-3 inline mr-1" />
+                          Inspection: {formatDate(claim.inspection.scheduledDate)}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Show approved credits */}
+                    {claim.status === 'approved' && claim.creditIssuance?.approvedCredits && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-2">
+                        <p className="text-xs text-green-800 font-medium">
+                          <CheckCircle className="h-3 w-3 inline mr-1" />
+                          {formatNumber(claim.creditIssuance.approvedCredits)} credits issued
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Submitted: {formatDate(claim.createdAt)}</span>
+                      <button className="text-blue-600 hover:text-blue-700 font-medium">
+                        View Details
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="mt-6 bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Quick Stats</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600 mb-2">
+                {stats.approvedClaims}
+              </div>
+              <p className="text-gray-600">Approved Claims</p>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-3xl font-bold text-orange-600 mb-2">
+                {stats.pendingClaims}
+              </div>
+              <p className="text-gray-600">Pending Claims</p>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600 mb-2">
+                {myClaims.reduce((sum, claim) => {
+                  return sum + (claim.creditIssuance?.approvedCredits || 0);
+                }, 0).toLocaleString()}
+              </div>
+              <p className="text-gray-600">Total Credits Issued</p>
+            </div>
           </div>
         </div>
       </div>

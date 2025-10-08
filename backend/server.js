@@ -11,6 +11,7 @@ const creditRoutes = require('./routes/credits');
 const verificationRoutes = require('./routes/verification');
 const blockchainRoutes = require('./routes/blockchain');
 const mrvRoutes = require('./routes/mrvRoutes');
+const creditClaimRoutes = require('./routes/creditClaimRoutes');
 
 const errorHandler = require('./middleware/errorHandler');
 
@@ -49,6 +50,7 @@ app.use('/api/credits', creditRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/blockchain', blockchainRoutes);
 app.use('/api/mrv',mrvRoutes);
+app.use('/api/claims', creditClaimRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

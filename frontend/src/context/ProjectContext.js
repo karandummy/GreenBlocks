@@ -20,6 +20,7 @@ export const ProjectProvider = ({ children }) => {
       setLoading(true);
       const response = await projectService.getAllProjects(params);
       setProjects(response.projects || []);
+      
       return response;
     } catch (error) {
       console.error('Fetch projects error:', error);

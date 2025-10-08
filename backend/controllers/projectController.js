@@ -24,9 +24,9 @@ exports.getAllProjects = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
-    console.log('Projects fetched:', projects);
+    // console.log('Projects fetched:', projects);
     const total = await Project.countDocuments(query);
-    console.log('Total projects count:', total);
+    // console.log('Total projects count:', total);
     res.json({
       success: true,
       projects,
@@ -64,12 +64,12 @@ exports.getMyProjects = async (req, res) => {
 
 exports.getProjectById = async (req, res) => {
   try {
-    console.log('Fetching project with ID:', req);
+    // console.log('Fetching project with ID:', req);
     const project = await Project.findById(req.params.id)
       .populate('developer', 'name organization email')
       .populate('verification.reviewedBy', 'name organization')
       .populate('mrvData');
-    console.log('Project fetched by ID:', project);
+    // console.log('Project fetched by ID:', project);
     if (!project) {
       return res.status(404).json({ 
         success: false, 
@@ -153,7 +153,7 @@ exports.updateProject = async (req, res) => {
 
     Object.assign(project, req.body);
     await project.save();
-    console.log('Updated project:', project);
+    // console.log('Updated project:', project);
 
     res.json({
       success: true,
