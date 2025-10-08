@@ -29,6 +29,7 @@ const ProjectRegistration = () => {
     location: {
       country: 'India',
       state: '',
+      address:'',
       coordinates: {
         latitude: '',
         longitude: ''
@@ -367,10 +368,29 @@ const ProjectRegistration = () => {
               </div>
             </div>
 
+            {/* Address Field */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Address *
+              </label>
+              <textarea
+                value={formData.location.address}
+                onChange={(e) => handleInputChange('location.address', e.target.value)}
+                rows="3"
+                placeholder="Enter complete address"
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                  errors['location.address'] ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              {errors['location.address'] && (
+                <p className="text-red-500 text-sm mt-1">{errors['location.address']}</p>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Latitude (Optional)
+                  Latitude 
                 </label>
                 <input
                   type="number"
@@ -384,7 +404,7 @@ const ProjectRegistration = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Longitude (Optional)
+                  Longitude 
                 </label>
                 <input
                   type="number"

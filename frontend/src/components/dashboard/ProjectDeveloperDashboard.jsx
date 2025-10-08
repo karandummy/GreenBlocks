@@ -166,7 +166,7 @@ const ProjectDeveloperDashboard = () => {
             <Plus className="h-5 w-5" />
             New Project
           </motion.button>
-          <motion.button
+          {/* <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => {
@@ -181,7 +181,7 @@ const ProjectDeveloperDashboard = () => {
           >
             <Upload className="h-5 w-5" />
             Upload MRV Data
-          </motion.button>
+          </motion.button> */}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

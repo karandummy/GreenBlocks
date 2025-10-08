@@ -13,7 +13,10 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  Upload
+  Upload,
+  Database,
+  Eye,
+  X
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { projectService } from '../../services/project.service';
@@ -30,6 +33,8 @@ const ProjectDetails = () => {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showMRVModal, setShowMRVModal] = useState(false);
+  const [selectedMRV, setSelectedMRV] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -58,7 +63,6 @@ const ProjectDetails = () => {
   const handleSubmitForVerification = async () => {
     try {
       setSubmitting(true);
-      // Update project status to submitted
       const response = await projectService.updateProject(id, { status: 'submitted' });
       if (response.success) {
         setProject(response.project);
@@ -71,6 +75,23 @@ const ProjectDetails = () => {
       setSubmitting(false);
     }
   };
+
+const handleViewMRVData = (mrvData) => {
+  if (!mrvData || !mrvData.files || mrvData.files.length === 0) {
+    alert("No files available for this MRV submission.");
+    return;
+  }
+
+  const ipfsGateway = "https://ipfs.io/ipfs/";
+
+  // Loop through each file CID and open it in a new tab
+  mrvData.files.forEach((fileCid) => {
+    const fileUrl = `${ipfsGateway}${fileCid}`;
+    window.open(fileUrl, "_blank");
+  });
+};
+
+
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -98,6 +119,20 @@ const ProjectDetails = () => {
     return type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  const getVerificationStatusBadge = (status) => {
+    const statusColors = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      verified: 'bg-green-100 text-green-800',
+      rejected: 'bg-red-100 text-red-800'
+    };
+    
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[status] || statusColors.pending}`}>
+        {status?.charAt(0).toUpperCase() + status?.slice(1) || 'Pending'}
+      </span>
+    );
+  };
+
   if (loading) {
     return <LoadingSpinner text="Loading project details..." />;
   }
@@ -110,10 +145,19 @@ const ProjectDetails = () => {
     );
   }
 
-  const isOwner = user?._id === project.developer?._id;
-  console.log("user id and project developer id",user, project.developer?._id)
-  const canEdit = isOwner && project.status === 'draft';
-  const canSubmit = isOwner && project.status === 'draft';
+
+const userId = user?._id; // safe access
+const developerId = project?.developer?._id; // safe access
+
+// console.log(userId);
+// console.log(developerId);
+
+const isOwner = userId === developerId;
+
+const canEdit = isOwner && project.status === 'draft';
+const canSubmit = isOwner && project.status === 'draft';
+const canUploadMRV = isOwner && project.status === 'approved';
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -121,7 +165,7 @@ const ProjectDetails = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/dashboard")}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -148,6 +192,18 @@ const ProjectDetails = () => {
                 Submit for Verification
               </button>
             )}
+
+            {canUploadMRV && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate(`/projects/${id}/mrv-data`)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
+              >
+                <Database className="h-4 w-4" />
+                Upload MRV Data
+              </motion.button>
+            )}
           </div>
         </div>
 
@@ -161,6 +217,21 @@ const ProjectDetails = () => {
             {getStatusBadge(project.status)}
           </div>
 
+          {/* Show approved status message */}
+          {project.status === 'approved' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="text-green-800 font-medium">Project Approved!</p>
+                  <p className="text-green-700 text-sm">
+                    Your project has been approved. You can now upload MRV data to start generating carbon credits.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <p className="text-gray-700 mb-6">{project.description}</p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -168,6 +239,7 @@ const ProjectDetails = () => {
               <MapPin className="h-5 w-5 text-gray-400" />
               <div>
                 <p className="text-sm text-gray-600">Location</p>
+                <p className="font-medium">{project.location.address}</p>
                 <p className="font-medium">{project.location.state}, {project.location.country}</p>
               </div>
             </div>
@@ -205,7 +277,7 @@ const ProjectDetails = () => {
                 <p className="text-sm text-gray-600 mb-1">Baseline</p>
                 <p className="text-gray-900">{project.projectDetails.baseline}</p>
               </div>
-              {project.location.coordinates.latitude && project.location.coordinates.longitude && (
+              {project.location.coordinates?.latitude && project.location.coordinates?.longitude && (
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Coordinates</p>
                   <p className="text-gray-900">
@@ -241,7 +313,7 @@ const ProjectDetails = () => {
         </div>
 
         {/* Documentation */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        {/* <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Documentation</h3>
             {isOwner && (
@@ -278,7 +350,122 @@ const ProjectDetails = () => {
               <p>No documentation uploaded yet</p>
             </div>
           )}
-        </div>
+        </div> */}
+
+        {/* MRV Data Section - Show only for approved projects */}
+        {project.status === 'approved' && (
+  <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+    <div className="flex justify-between items-center mb-4">
+      <h3 className="text-lg font-semibold text-gray-900">MRV Data</h3>
+      {/* Optional: Show this only for project owners */}
+      {/* {isOwner && (
+        <button 
+          onClick={() => navigate(`/projects/${id}/mrv-data`)}
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+        >
+          <Database className="h-4 w-4" />
+          Manage MRV Data
+        </button>
+      )} */}
+    </div>
+
+    {project.mrvData && project.mrvData.length > 0 ? (
+      <div className="space-y-3">
+        <p className="text-sm text-gray-600 mb-3">Recent MRV submissions:</p>
+
+        {project.mrvData.slice(0, 5).map((mrv, index) => (
+          <div
+            key={index}
+            className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200"
+          >
+            <div className="flex-1">
+              {/* Report Title */}
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-medium text-gray-900">
+                  {mrv.reportName || `Report ${index + 1}`}
+                </p>
+                <span className="text-xs text-gray-500">
+                  Uploaded on {formatDate(mrv.uploadedAt)}
+                </span>
+              </div>
+
+              {/* Description */}
+              <p className="text-gray-700 mb-2">
+                {mrv.description || "No description provided."}
+              </p>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {/* <div>
+                  <p className="text-gray-600">Uploaded By:</p>
+                  <p className="text-blue-700 font-medium">
+                    {mrv.uploadedBy || "Unknown"}
+                  </p>
+                </div> */}
+                <div>
+                  <p className="text-gray-600">Files:</p>
+                  <p className="text-blue-700 font-medium">
+                    {mrv.files?.length > 0
+                      ? `${mrv.files.length} file${mrv.files.length > 1 ? "s" : ""}`
+                      : "No files"}
+                  </p>
+                </div>
+              </div>
+
+              {/* IPFS Metadata */}
+              {mrv.ipfsHash && (
+                <p className="text-xs text-gray-500 mt-2">
+                  IPFS Metadata:{" "}
+                  <a
+                    href={`https://ipfs.io/ipfs/${mrv.ipfsHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    {mrv.ipfsHash.slice(0, 15)}...
+                  </a>
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={() => handleViewMRVData(mrv)}
+              className="ml-4 flex items-center gap-1 px-3 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
+            >
+              <Eye className="h-4 w-4" />
+              View
+            </button>
+          </div>
+        ))}
+
+        {/* "View All" button if more than 5 */}
+        {project.mrvData.length > 5 && (
+          <div className="text-center pt-4">
+            <button
+              onClick={() => navigate(`/projects/${id}/mrv-data`)}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              View all {project.mrvData.length} MRV submissions →
+            </button>
+          </div>
+        )}
+      </div>
+    ) : (
+      <div className="text-center py-8">
+        <Database className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500 mb-4">No MRV data uploaded yet</p>
+        <button
+          onClick={() => navigate(`/projects/${id}/mrv-data`)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Database className="h-4 w-4" />
+          Upload MRV Data
+        </button>
+      </div>
+    )}
+  </div>
+)}
+
 
         {/* Verification Status */}
         {project.verification && (
@@ -311,9 +498,15 @@ const ProjectDetails = () => {
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Comments</p>
                   <div className={`p-3 rounded-lg ${
-                    project.status === 'rejected' ? 'bg-red-50 border border-red-200' : 'bg-blue-50 border border-blue-200'
+                    project.status === 'rejected' ? 'bg-red-50 border border-red-200' : 
+                    project.status === 'approved' ? 'bg-green-50 border border-green-200' :
+                    'bg-blue-50 border border-blue-200'
                   }`}>
-                    <p className={project.status === 'rejected' ? 'text-red-800' : 'text-blue-800'}>
+                    <p className={
+                      project.status === 'rejected' ? 'text-red-800' : 
+                      project.status === 'approved' ? 'text-green-800' :
+                      'text-blue-800'
+                    }>
                       {project.verification.comments}
                     </p>
                   </div>
@@ -370,6 +563,7 @@ const ProjectDetails = () => {
           </div>
         </div>
       </Modal>
+
     </div>
   );
 };

@@ -271,9 +271,9 @@ exports.submitMRVData = async (req, res) => {
         message: 'Project not found' 
       });
     }
-
+    console.log('Project for MRV submission:', project.developer.toString(),  req.user.userId.toString());
     // Check if user owns the project
-    if (project.developer.toString() !== req.user.userId) {
+    if (project.developer.toString() !== req.user.userId.toString()) {
       return res.status(403).json({ 
         success: false, 
         message: 'Not authorized to submit MRV data for this project' 

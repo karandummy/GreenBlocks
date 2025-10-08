@@ -1,48 +1,30 @@
-import api from './api';
+import axios from 'axios';
+
+const API_URL = 'http://localhost:5000/api/auth'; // adjust to your backend URL
 
 export const authService = {
-  async login(credentials) {
-    try {
-      const response = await api.post('/auth/login', credentials);
-      return response.data;
-    } catch (error) {
-      throw new Error(error.response?.data?.message || 'Login failed');
-    }
+  async register(userData) {
+    const response = await axios.post(`${API_URL}/register`, userData);
+    return response.data;
   },
 
-  async register(userData) {
-    try {
-      const response = await api.post('/auth/register', userData);
-      return response.data;
-    } catch (error) {
-      throw new Error(error.response?.data?.message || 'Registration failed');
-    }
+  async login(data) {
+    const response = await axios.post(`${API_URL}/login`, data);
+    return response.data;
   },
 
   async verifyToken() {
-    try {
-      const response = await api.get('/auth/verify');
-      return response.data;
-    } catch (error) {
-      throw new Error(error.response?.data?.message || 'Token verification failed');
-    }
+    const token = localStorage.getItem('token');
+    if (!token) return { success: false };
+
+    const response = await axios.get(`${API_URL}/verify-token`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
   },
 
-  async getProfile() {
-    try {
-      const response = await api.get('/auth/profile');
-      return response.data;
-    } catch (error) {
-      throw new Error(error.response?.data?.message || 'Failed to get profile');
-    }
-  },
-
-  async updateProfile(profileData) {
-    try {
-      const response = await api.put('/auth/profile', profileData);
-      return response.data;
-    } catch (error) {
-      throw new Error(error.response?.data?.message || 'Failed to update profile');
-    }
+  async verifyWallet(walletAddress) {
+    const response = await axios.post(`${API_URL}/verify-wallet`, { walletAddress });
+    return response.data;
   }
 };

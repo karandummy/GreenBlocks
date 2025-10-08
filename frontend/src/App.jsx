@@ -42,6 +42,12 @@ import TransactionHistory from './components/blockchain/TransactionHistory';
 import BlockchainExplorer from './components/blockchain/BlockchainExplorer';
 import TokenManager from './components/blockchain/TokenManager';
 
+// In your React Router setup (likely in App.js or routes file)
+import PendingVerificationsPage from './components/regulatory/PendingVerificationsPage';
+
+// Add this route:
+
+
 // Hooks
 import { useAuth } from './hooks/useAuth';
 
@@ -67,7 +73,7 @@ function DashboardRouter() {
   const { user } = useAuth();
 
   if (!user) return <Navigate to="/login" replace />;
-
+  console.log(user.role);
   switch (user.role) {
     case 'project_developer':
       return <ProjectDeveloperDashboard />;
@@ -212,13 +218,17 @@ function App() {
                   />
                   
                   {/* Verification Routes - Regulatory Bodies */}
-                  <Route 
+                  {/* <Route 
                     path="/verification/pending" 
                     element={
                       <ProtectedRoute allowedRoles={['regulatory_body']}>
                         <RegulatoryDashboard />
                       </ProtectedRoute>
                     } 
+                  /> */}
+                  <Route 
+                      path="/verification/pending" 
+                      element={<PendingVerificationsPage />} 
                   />
                   <Route 
                     path="/verification/completed" 
