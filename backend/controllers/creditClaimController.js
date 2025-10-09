@@ -2,6 +2,12 @@
 const CreditClaim = require('../models/CreditClaim');
 const Project = require('../models/Project');
 const { validationResult } = require('express-validator');
+const { ethers } = require("ethers");
+
+const ERC20_ABI = [
+  "function decimals() view returns (uint8)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+];
 
 // Create a new credit claim
 exports.createClaim = async (req, res) => {
@@ -328,6 +334,99 @@ exports.completeInspection = async (req, res) => {
 };
 
 // Issue credits (Regulatory body - final approval)
+// exports.issueCredits = async (req, res) => {
+//   try {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Validation errors', 
+//         errors: errors.array() 
+//       });
+//     }
+
+//     const { approvedCredits, comments  } = req.body;
+
+//     // console.log(project_id);
+
+//     const claim = await CreditClaim.findById(req.params.id)
+//       .populate('project')
+//       .populate('developer', 'name email organization');
+    
+//     if (!claim) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: 'Claim not found' 
+//       });
+//     }
+
+//     if (claim.status !== 'inspection_completed') {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Inspection must be completed before issuing credits' 
+//       });
+//     }
+
+//     if (claim.inspection.inspectionResult !== 'passed' && claim.inspection.inspectionResult !== 'partial') {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Cannot issue credits for failed inspection' 
+//       });
+//     }
+
+//     // Validate approved credits
+//     if (approvedCredits <= 0) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Approved credits must be greater than zero' 
+//       });
+//     }
+
+//     if (approvedCredits > claim.claimDetails.creditsRequested) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Approved credits cannot exceed requested credits' 
+//       });
+//     }
+
+//     claim.status = 'approved';
+//     claim.creditIssuance.approvedCredits = approvedCredits;
+//     claim.creditIssuance.issuedAt = new Date();
+//     claim.creditIssuance.creditsIssued = true;
+//     claim.review.reviewedAt = new Date();
+//     claim.review.reviewedBy = req.user.userId;
+//     claim.review.comments = comments || 'Credits issued successfully';
+
+//     await claim.save();
+
+//     const project = await Project.findById(claim.project._id);
+//     if (project) {
+//       project.status = 'completed';
+//       await project.save();
+//     }
+
+//     // const project = await Project.findById(project_id);
+//     // project.status='completed';
+//     // await project.save();
+
+
+//     res.json({
+//       success: true,
+//       message: 'Credits issued successfully',
+//       claim
+//     });
+//   } catch (error) {
+//     console.error('Issue credits error:', error);
+//     res.status(500).json({ 
+//       success: false, 
+//       message: 'Server error while issuing credits' 
+//     });
+//   }
+// };
+
+
+
+// Issue credits (Regulatory body - final approval)
 exports.issueCredits = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -339,57 +438,64 @@ exports.issueCredits = async (req, res) => {
       });
     }
 
-    const { approvedCredits, comments  } = req.body;
-
-    // console.log(project_id);
+    const { approvedCredits, comments } = req.body;
 
     const claim = await CreditClaim.findById(req.params.id)
       .populate('project')
-      .populate('developer', 'name email organization');
-    
+      .populate('developer', 'name email organization walletAddress');
+
     if (!claim) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Claim not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Claim not found' });
     }
 
     if (claim.status !== 'inspection_completed') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Inspection must be completed before issuing credits' 
-      });
+      return res.status(400).json({ success: false, message: 'Inspection must be completed before issuing credits' });
     }
 
     if (claim.inspection.inspectionResult !== 'passed' && claim.inspection.inspectionResult !== 'partial') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot issue credits for failed inspection' 
-      });
+      return res.status(400).json({ success: false, message: 'Cannot issue credits for failed inspection' });
     }
 
-    // Validate approved credits
     if (approvedCredits <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Approved credits must be greater than zero' 
-      });
+      return res.status(400).json({ success: false, message: 'Approved credits must be greater than zero' });
     }
 
     if (approvedCredits > claim.claimDetails.creditsRequested) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Approved credits cannot exceed requested credits' 
-      });
+      return res.status(400).json({ success: false, message: 'Approved credits cannot exceed requested credits' });
     }
 
+  // ✅ --- BLOCKCHAIN TRANSFER SECTION ---
+const developerWallet = claim.developer.walletAddress;
+if (!developerWallet || !ethers.isAddress(developerWallet)) {
+  return res.status(400).json({ success: false, message: 'Invalid or missing developer wallet address' });
+}
+
+const provider = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
+const signer = new ethers.Wallet(process.env.REGULATOR_PRIVATE_KEY, provider);
+
+const tokenAddress = "0x555ab359988f83854eB2A89B1841E4fA5A6592b2"; // your ERC20 token
+const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+
+const decimals = await tokenContract.decimals();
+const tx = await tokenContract.transfer(
+  developerWallet,
+  ethers.parseUnits(approvedCredits.toString(), decimals)
+);
+
+console.log(`✅ Token transfer submitted: ${tx.hash}`);
+await tx.wait();
+console.log(`✅ Token transfer confirmed`);
+
+
+    // ✅ --- UPDATE CLAIM & PROJECT ---
     claim.status = 'approved';
     claim.creditIssuance.approvedCredits = approvedCredits;
     claim.creditIssuance.issuedAt = new Date();
     claim.creditIssuance.creditsIssued = true;
+    claim.creditIssuance.txHash = tx.hash; // store tx hash
     claim.review.reviewedAt = new Date();
     claim.review.reviewedBy = req.user.userId;
-    claim.review.comments = comments || 'Credits issued successfully';
+    claim.review.comments = comments || 'Credits issued and tokens transferred successfully';
 
     await claim.save();
 
@@ -399,24 +505,24 @@ exports.issueCredits = async (req, res) => {
       await project.save();
     }
 
-    // const project = await Project.findById(project_id);
-    // project.status='completed';
-    // await project.save();
-
-
     res.json({
       success: true,
-      message: 'Credits issued successfully',
+      message: 'Credits issued and tokens transferred successfully',
+      txHash: tx.hash,
       claim
     });
+
   } catch (error) {
     console.error('Issue credits error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Server error while issuing credits' 
+      message: 'Server error while issuing credits', 
+      error: error.message 
     });
   }
 };
+
+
 
 // Reject claim
 exports.rejectClaim = async (req, res) => {
