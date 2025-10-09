@@ -4,11 +4,12 @@ import { motion } from 'framer-motion';
 import { 
   Plus, FileText, TrendingUp, Award, Upload, Eye, Clock,
   CheckCircle, XCircle, Edit, Send, DollarSign, AlertCircle,
-  Calendar, MapPin
+  Calendar, MapPin, ShoppingBag, Package
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProjects } from '../../hooks/useProjects';
 import { creditClaimService } from '../../services/creditClaim.service';
+import { marketplaceService } from '../../services/marketplace.service';
 import { toast } from 'react-hot-toast';
 import { formatDate, formatNumber } from '../../utils/helpers';
 
@@ -16,7 +17,6 @@ const ProjectDeveloperDashboard = () => {
   const { user } = useAuth();
   const { projects, loading, fetchMyProjects } = useProjects();
   const navigate = useNavigate();
-  console.log(projects);
   
   const [stats, setStats] = useState({
     totalProjects: 0,
@@ -24,29 +24,37 @@ const ProjectDeveloperDashboard = () => {
     totalClaims: 0,
     pendingClaims: 0,
     approvedClaims: 0,
-    pendingVerification: 0
+    creditsIssued: 0,
+    creditsListed: 0
   });
   const [myClaims, setMyClaims] = useState([]);
+  const [myListings, setMyListings] = useState([]);
 
   useEffect(() => {
     fetchMyProjects();
     fetchMyClaims();
+    fetchMyListings();
   }, []);
 
   useEffect(() => {
     if (projects.length > 0) {
       calculateStats();
     }
-  }, [projects, myClaims]);
+  }, [projects, myClaims, myListings]);
 
   const calculateStats = () => {
     const totalProjects = projects.length;
     const activeProjects = projects.filter(p => ['approved', 'active'].includes(p.status)).length;
-    const pendingVerification = projects.filter(p => ['submitted', 'under_review'].includes(p.status)).length;
     
     const totalClaims = myClaims.length;
     const pendingClaims = myClaims.filter(c => ['pending', 'under_review', 'inspection_scheduled'].includes(c.status)).length;
     const approvedClaims = myClaims.filter(c => c.status === 'approved').length;
+    const creditsIssued = myClaims
+      .filter(c => c.status === 'approved')
+      .reduce((sum, c) => sum + (c.creditIssuance?.approvedCredits || 0), 0);
+    const creditsListed = myListings
+      .filter(l => l.status === 'active' || l.status === 'partial')
+      .reduce((sum, l) => sum + l.creditsAvailable, 0);
     
     setStats({
       totalProjects,
@@ -54,7 +62,8 @@ const ProjectDeveloperDashboard = () => {
       totalClaims,
       pendingClaims,
       approvedClaims,
-      pendingVerification
+      creditsIssued,
+      creditsListed
     });
   };
 
@@ -66,6 +75,17 @@ const ProjectDeveloperDashboard = () => {
       }
     } catch (error) {
       console.error('Failed to fetch claims:', error);
+    }
+  };
+
+  const fetchMyListings = async () => {
+    try {
+      const response = await marketplaceService.getMyListings();
+      if (response.success) {
+        setMyListings(response.listings || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch listings:', error);
     }
   };
 
@@ -95,7 +115,6 @@ const ProjectDeveloperDashboard = () => {
       approved: { color: 'bg-green-100 text-green-800', icon: CheckCircle, text: 'Approved' },
       rejected: { color: 'bg-red-100 text-red-800', icon: XCircle, text: 'Rejected' },
       completed: { color: 'bg-indigo-100 text-indigo-800', icon: CheckCircle, text: 'Completed' }
-
     };
 
     const config = statusConfig[status] || statusConfig.draft;
@@ -116,8 +135,7 @@ const ProjectDeveloperDashboard = () => {
       inspection_scheduled: { color: 'bg-purple-100 text-purple-800', icon: Calendar, text: 'Inspection Scheduled' },
       inspection_completed: { color: 'bg-indigo-100 text-indigo-800', icon: CheckCircle, text: 'Inspection Done' },
       approved: { color: 'bg-green-100 text-green-800', icon: CheckCircle, text: 'Approved' },
-      rejected: { color: 'bg-red-100 text-red-800', icon: XCircle, text: 'Rejected' },
-      completed: { color: 'bg-indigo-100 text-indigo-800', icon: CheckCircle, text: 'Completed' }
+      rejected: { color: 'bg-red-100 text-red-800', icon: XCircle, text: 'Rejected' }
     };
 
     const config = statusConfig[status] || statusConfig.pending;
@@ -142,7 +160,6 @@ const ProjectDeveloperDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Welcome back, {user?.name}!
@@ -150,7 +167,6 @@ const ProjectDeveloperDashboard = () => {
           <p className="text-gray-600">Manage your carbon offset projects and track credit claims</p>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="Total Projects"
@@ -166,20 +182,19 @@ const ProjectDeveloperDashboard = () => {
             color="bg-green-500"
           />
           <StatCard
-            title="Credit Claims"
-            value={stats.totalClaims}
-            icon={DollarSign}
+            title="Credits Issued"
+            value={stats.creditsIssued}
+            icon={Award}
             color="bg-purple-500"
           />
           <StatCard
-            title="Pending Claims"
-            value={stats.pendingClaims}
-            icon={Clock}
+            title="Credits Listed"
+            value={stats.creditsListed}
+            icon={ShoppingBag}
             color="bg-orange-500"
           />
         </div>
 
-        {/* Action Buttons */}
         <div className="flex flex-wrap gap-4 mb-8">
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -190,10 +205,29 @@ const ProjectDeveloperDashboard = () => {
             <Plus className="h-5 w-5" />
             New Project
           </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/sell-credits')}
+            className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200"
+          >
+            <ShoppingBag className="h-5 w-5" />
+            Sell Credits
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/marketplace')}
+            className="flex items-center gap-2 bg-white border-2 border-green-600 text-green-600 px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200"
+          >
+            <Package className="h-5 w-5" />
+            View Marketplace
+          </motion.button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Projects */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">Recent Projects</h2>
@@ -239,7 +273,6 @@ const ProjectDeveloperDashboard = () => {
             )}
           </div>
 
-          {/* Credit Claims */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">Credit Claims</h2>
@@ -274,7 +307,6 @@ const ProjectDeveloperDashboard = () => {
                       {getClaimStatusBadge(claim.status)}
                     </div>
 
-                    {/* Show inspection date if scheduled */}
                     {claim.inspection?.scheduledDate && claim.status === 'inspection_scheduled' && (
                       <div className="bg-purple-50 border border-purple-200 rounded-lg p-2 mb-2">
                         <p className="text-xs text-purple-800">
@@ -284,7 +316,6 @@ const ProjectDeveloperDashboard = () => {
                       </div>
                     )}
 
-                    {/* Show approved credits */}
                     {claim.status === 'approved' && claim.creditIssuance?.approvedCredits && (
                       <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-2">
                         <p className="text-xs text-green-800 font-medium">
@@ -307,32 +338,117 @@ const ProjectDeveloperDashboard = () => {
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="mt-6 bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Quick Stats</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600 mb-2">
-                {stats.approvedClaims}
-              </div>
-              <p className="text-gray-600">Approved Claims</p>
-            </div>
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Marketplace Listings</h2>
             
-            <div className="text-center">
-              <div className="text-3xl font-bold text-orange-600 mb-2">
-                {stats.pendingClaims}
+            {myListings.length === 0 ? (
+              <div className="text-center py-8">
+                <ShoppingBag className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-4">No active listings</p>
+                <button
+                  onClick={() => navigate('/sell-credits')}
+                  className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 font-medium"
+                >
+                  <Plus className="h-4 w-4" />
+                  List credits for sale
+                </button>
               </div>
-              <p className="text-gray-600">Pending Claims</p>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                {myListings.slice(0, 3).map((listing) => (
+                  <div key={listing._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h4 className="font-medium text-gray-900">{listing.project?.name}</h4>
+                        <p className="text-sm text-gray-600">Listing ID: {listing.listingId}</p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        listing.status === 'active' ? 'bg-green-100 text-green-800' :
+                        listing.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
+                        listing.status === 'sold' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {listing.status}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <p className="text-xs text-gray-500">Available</p>
+                          <p className="text-lg font-bold text-green-600">{listing.creditsAvailable}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Listed</p>
+                          <p className="text-lg font-semibold text-gray-900">{listing.creditsListed}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Price</p>
+                          <p className="text-lg font-semibold text-gray-900">{listing.pricePerCredit} ETH</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {listing.sales && listing.sales.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="text-xs text-gray-600">
+                          {listing.sales.length} sale(s) • {listing.sales.reduce((sum, s) => sum + s.amount, 0)} credits sold
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Quick Stats</h2>
             
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600 mb-2">
-                {myClaims.reduce((sum, claim) => {
-                  return sum + (claim.creditIssuance?.approvedCredits || 0);
-                }, 0).toLocaleString()}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-green-600 mb-2">
+                  {stats.approvedClaims}
+                </div>
+                <p className="text-sm text-gray-600">Approved Claims</p>
               </div>
-              <p className="text-gray-600">Total Credits Issued</p>
+              
+              <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-orange-600 mb-2">
+                  {stats.pendingClaims}
+                </div>
+                <p className="text-sm text-gray-600">Pending Claims</p>
+              </div>
+              
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-purple-600 mb-2">
+                  {stats.creditsIssued.toLocaleString()}
+                </div>
+                <p className="text-sm text-gray-600">Credits Issued</p>
+              </div>
+              
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 text-center">
+                <div className="text-3xl font-bold text-blue-600 mb-2">
+                  {stats.creditsListed.toLocaleString()}
+                </div>
+                <p className="text-sm text-gray-600">Listed for Sale</p>
+              </div>
+            </div>
+
+            <div className="mt-6 p-4 bg-gradient-to-r from-green-100 to-blue-100 rounded-xl">
+              <div className="flex items-center gap-3 mb-2">
+                <Award className="h-6 w-6 text-green-600" />
+                <h3 className="font-semibold text-gray-900">Marketplace Earnings</h3>
+              </div>
+              <p className="text-2xl font-bold text-green-600">
+                {(myListings.reduce((sum, l) => {
+                  return sum + (l.sales?.reduce((s, sale) => s + sale.price, 0) || 0);
+                }, 0)).toFixed(4)} ETH
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                From {myListings.reduce((sum, l) => sum + (l.sales?.length || 0), 0)} transactions
+              </p>
             </div>
           </div>
         </div>

@@ -44,6 +44,8 @@ import TokenManager from './components/blockchain/TokenManager';
 
 // In your React Router setup (likely in App.js or routes file)
 import PendingVerificationsPage from './components/regulatory/PendingVerificationsPage';
+import SellCreditsPage from './components/creditMarket/SellCreditsPage';
+import MarketplacePage from './components/creditMarket/MarketplacePage';
 
 // Add this route:
 
@@ -138,6 +140,9 @@ function App() {
                       </ProtectedRoute>
                     } 
                   />
+
+                  <Route path="/sell-credits" element={<SellCreditsPage />} />
+                  <Route path="/marketplace" element={<MarketplacePage />} />
                   
                   {/* Project Routes - Project Developers */}
                   <Route 
