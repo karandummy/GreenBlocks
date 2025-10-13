@@ -61,6 +61,10 @@ const creditClaimSchema = new mongoose.Schema({
     },
     comments: String
   },
+  isSold:{
+    type:Boolean,
+    default:false
+  },
   creditIssuance: {
   approvedCredits: { type: Number },
   issuedAt: { type: Date },

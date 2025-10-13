@@ -30,6 +30,8 @@ exports.listCredits = async (req, res) => {
 
     const { claimId, creditsToSell } = req.body;
 
+    
+
     // Find the credit claim
     const claim = await CreditClaim.findById(claimId)
       .populate('project')
@@ -41,6 +43,10 @@ exports.listCredits = async (req, res) => {
         message: 'Credit claim not found' 
       });
     }
+
+    // if (claim.isSold) {
+    //   return res.status(400).json({ error: 'This claim has already been sold and cannot be listed again' });
+    // }
 
     // Verify ownership
     if (claim.developer._id.toString() !== req.user.userId.toString()) {
@@ -401,6 +407,10 @@ exports.buyCredits = async (req, res) => {
     }
 
     await listing.save();
+
+    // const claim = await CreditClaim.findById(listing.creditClaim._id);
+    // claim.isSold = true;
+    // await claim.save();
 
     // ✅ NEW: Update or create CreditOwnership record
     let ownership = await CreditOwnership.findOne({

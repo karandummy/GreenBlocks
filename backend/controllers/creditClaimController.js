@@ -3,6 +3,8 @@ const CreditClaim = require('../models/CreditClaim');
 const Project = require('../models/Project');
 const { validationResult } = require('express-validator');
 const { ethers } = require("ethers");
+const Marketplace = require('../models/Marketplace');
+
 
 const ERC20_ABI = [
   "function decimals() view returns (uint8)",
@@ -150,26 +152,83 @@ exports.getAllClaims = async (req, res) => {
 };
 
 // Get developer's claims
+// exports.getMyClaims = async (req, res) => {
+//   try {
+//     const claims = await CreditClaim.find({ developer: req.user.userId })
+//       .populate('project', 'name projectId type location')
+//       .populate('inspection.inspector', 'name organization')
+//       .populate('review.reviewedBy', 'name organization')
+//       .sort({ createdAt: -1 });
+
+
+//     res.json({
+//       success: true,
+//       claims
+//     });
+//   } catch (error) {
+//     console.error('Get my claims error:', error);
+//     res.status(500).json({ 
+//       success: false, 
+//       message: 'Server error while fetching claims' 
+//     });
+//   }
+// };
+
 exports.getMyClaims = async (req, res) => {
   try {
+    // Fetch developer's claims
     const claims = await CreditClaim.find({ developer: req.user.userId })
       .populate('project', 'name projectId type location')
       .populate('inspection.inspector', 'name organization')
       .populate('review.reviewedBy', 'name organization')
       .sort({ createdAt: -1 });
 
+    // Fetch all marketplace listings related to these claims
+    const claimIds = claims.map(c => c._id);
+    const listings = await Marketplace.find({ creditClaim: { $in: claimIds } });
+
+    // Attach marketplace info and filter out sold claims
+    const claimsWithMarketStatus = claims
+      .map(claim => {
+        const listing = listings.find(l => l.creditClaim.toString() === claim._id.toString());
+
+        // If sold, return null to filter out later
+        if (listing && listing.status === 'sold') return null;
+
+        return {
+          ...claim.toObject(),
+          marketplace: listing
+            ? {
+                listed: true,
+                listingId: listing.listingId,
+                status: listing.status,
+                creditsListed: listing.creditsListed,
+                creditsAvailable: listing.creditsAvailable,
+                pricePerCredit: listing.pricePerCredit,
+                lastUpdated: listing.updatedAt
+              }
+            : {
+                listed: false,
+                status: 'not_listed'
+              }
+        };
+      })
+      .filter(claim => claim !== null); // Remove sold claims
+
     res.json({
       success: true,
-      claims
+      claims: claimsWithMarketStatus
     });
   } catch (error) {
     console.error('Get my claims error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error while fetching claims' 
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching claims'
     });
   }
 };
+
+
 
 // Get single claim details
 exports.getClaimById = async (req, res) => {

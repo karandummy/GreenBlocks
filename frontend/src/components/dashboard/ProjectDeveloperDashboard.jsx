@@ -403,7 +403,7 @@ const ProjectDeveloperDashboard = () => {
             )}
           </div>
 
-          <div className="bg-white rounded-xl shadow-lg p-6">
+          {/* <div className="bg-white rounded-xl shadow-lg p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-6">Quick Stats</h2>
             
             <div className="grid grid-cols-2 gap-4">
@@ -450,7 +450,7 @@ const ProjectDeveloperDashboard = () => {
                 From {myListings.reduce((sum, l) => sum + (l.sales?.length || 0), 0)} transactions
               </p>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>
