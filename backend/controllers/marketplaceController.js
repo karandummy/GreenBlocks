@@ -205,6 +205,126 @@ exports.getMyListings = async (req, res) => {
 };
 
 // Buy credits
+// exports.buyCredits = async (req, res) => {
+//   try {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Validation errors', 
+//         errors: errors.array() 
+//       });
+//     }
+
+//     const { listingId, creditsToBuy, transactionHash } = req.body;
+
+//     const listing = await Marketplace.findById(listingId)
+//       .populate('seller', 'walletAddress name')
+//       .populate('project', 'name');
+
+//     if (!listing) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: 'Listing not found' 
+//       });
+//     }
+
+//     if (listing.status !== 'active' && listing.status !== 'partial') {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Listing is not available for purchase' 
+//       });
+//     }
+
+//     if (creditsToBuy <= 0 || creditsToBuy > listing.creditsAvailable) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Invalid credit amount' 
+//       });
+//     }
+
+//     // Get buyer info
+//     const buyer = await User.findById(req.user.userId);
+//     if (!buyer.walletAddress || !ethers.isAddress(buyer.walletAddress)) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Valid wallet address required to purchase credits' 
+//       });
+//     }
+
+//     // Calculate total price in ETH
+//     const totalPrice = creditsToBuy * listing.pricePerCredit;
+
+//     // Verify the transaction hash if provided
+//     if (transactionHash) {
+//       const provider = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
+//       try {
+//         const receipt = await provider.getTransactionReceipt(transactionHash);
+//         if (!receipt) {
+//           return res.status(400).json({ 
+//             success: false, 
+//             message: 'Transaction not found or not confirmed' 
+//           });
+//         }
+//       } catch (error) {
+//         return res.status(400).json({ 
+//           success: false, 
+//           message: 'Invalid transaction hash' 
+//         });
+//       }
+//     }
+
+//     // Transfer tokens from seller to buyer
+//     const provider = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
+//     const sellerSigner = new ethers.Wallet(process.env.REGULATOR_PRIVATE_KEY, provider);
+//     const tokenContract = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, sellerSigner);
+//     const decimals = await tokenContract.decimals();
+
+//     // Transfer tokens
+//     const tx = await tokenContract.transfer(
+//       buyer.walletAddress,
+//       ethers.parseUnits(creditsToBuy.toString(), decimals)
+//     );
+
+//     console.log(`✅ Token transfer submitted: ${tx.hash}`);
+//     await tx.wait();
+//     console.log(`✅ Token transfer confirmed`);
+
+
+
+//     // Update listing
+//     listing.creditsAvailable -= creditsToBuy;
+//     listing.sales.push({
+//       buyer: req.user.userId,
+//       amount: creditsToBuy,
+//       price: totalPrice,
+//       transactionHash: tx.hash,
+//       soldAt: new Date()
+//     });
+
+//     await listing.save();
+
+
+//     res.json({
+//       success: true,
+//       message: 'Credits purchased successfully',
+//       tokenTransferHash: tx.hash,
+//       paymentHash: transactionHash,
+//       creditsPurchased: creditsToBuy,
+//       totalPrice: totalPrice,
+//       listing
+//     });
+//   } catch (error) {
+//     console.error('Buy credits error:', error);
+//     res.status(500).json({ 
+//       success: false, 
+//       message: 'Server error while purchasing credits',
+//       error: error.message 
+//     });
+//   }
+// };
+
+// Buy credits
 exports.buyCredits = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -220,77 +340,51 @@ exports.buyCredits = async (req, res) => {
 
     const listing = await Marketplace.findById(listingId)
       .populate('seller', 'walletAddress name')
-      .populate('project', 'name');
+      .populate('project', 'name')
+      .populate('creditClaim', 'claimId');
 
     if (!listing) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Listing not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Listing not found' });
     }
 
     if (listing.status !== 'active' && listing.status !== 'partial') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Listing is not available for purchase' 
-      });
+      return res.status(400).json({ success: false, message: 'Listing is not available for purchase' });
     }
 
     if (creditsToBuy <= 0 || creditsToBuy > listing.creditsAvailable) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid credit amount' 
-      });
+      return res.status(400).json({ success: false, message: 'Invalid credit amount' });
     }
 
-    // Get buyer info
     const buyer = await User.findById(req.user.userId);
     if (!buyer.walletAddress || !ethers.isAddress(buyer.walletAddress)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Valid wallet address required to purchase credits' 
-      });
+      return res.status(400).json({ success: false, message: 'Valid wallet address required to purchase credits' });
     }
 
-    // Calculate total price in ETH
     const totalPrice = creditsToBuy * listing.pricePerCredit;
 
-    // Verify the transaction hash if provided
+    // Optional blockchain verification
     if (transactionHash) {
       const provider = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
-      try {
-        const receipt = await provider.getTransactionReceipt(transactionHash);
-        if (!receipt) {
-          return res.status(400).json({ 
-            success: false, 
-            message: 'Transaction not found or not confirmed' 
-          });
-        }
-      } catch (error) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Invalid transaction hash' 
-        });
+      const receipt = await provider.getTransactionReceipt(transactionHash);
+      if (!receipt) {
+        return res.status(400).json({ success: false, message: 'Transaction not found or not confirmed' });
       }
     }
 
-    // Transfer tokens from seller to buyer
+    // Transfer tokens (simulate or real)
     const provider = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
     const sellerSigner = new ethers.Wallet(process.env.REGULATOR_PRIVATE_KEY, provider);
     const tokenContract = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, sellerSigner);
     const decimals = await tokenContract.decimals();
 
-    // Transfer tokens
     const tx = await tokenContract.transfer(
       buyer.walletAddress,
       ethers.parseUnits(creditsToBuy.toString(), decimals)
     );
 
-    console.log(`✅ Token transfer submitted: ${tx.hash}`);
     await tx.wait();
-    console.log(`✅ Token transfer confirmed`);
 
-    // Update listing
+    // Update marketplace listing
     listing.creditsAvailable -= creditsToBuy;
     listing.sales.push({
       buyer: req.user.userId,
@@ -300,7 +394,50 @@ exports.buyCredits = async (req, res) => {
       soldAt: new Date()
     });
 
+    if (listing.creditsAvailable === 0) {
+      listing.status = 'sold';
+    } else {
+      listing.status = 'partial';
+    }
+
     await listing.save();
+
+    // ✅ NEW: Update or create CreditOwnership record
+    let ownership = await CreditOwnership.findOne({
+      buyer: req.user.userId,
+      creditClaim: listing.creditClaim._id,
+      status: 'active'
+    });
+
+    if (ownership) {
+      // Update existing ownership
+      ownership.creditsOwned += creditsToBuy;
+      ownership.totalCost += totalPrice;
+      ownership.blockchain = {
+        paymentTxHash: transactionHash,
+        tokenTransferTxHash: tx.hash,
+        blockNumber: (await provider.getTransactionReceipt(tx.hash)).blockNumber
+      };
+      await ownership.save();
+    } else {
+      // Create new ownership record
+      ownership = new CreditOwnership({
+        buyer: req.user.userId,
+        seller: listing.seller._id,
+        listing: listing._id,
+        project: listing.project._id,
+        creditClaim: listing.creditClaim._id,
+        creditsOwned: creditsToBuy,
+        purchasePrice: listing.pricePerCredit,
+        totalCost: totalPrice,
+        blockchain: {
+          paymentTxHash: transactionHash,
+          tokenTransferTxHash: tx.hash,
+          blockNumber: (await provider.getTransactionReceipt(tx.hash)).blockNumber
+        }
+      });
+      await ownership.save();
+    }
 
     res.json({
       success: true,
@@ -309,8 +446,10 @@ exports.buyCredits = async (req, res) => {
       paymentHash: transactionHash,
       creditsPurchased: creditsToBuy,
       totalPrice: totalPrice,
-      listing
+      listing,
+      ownership
     });
+
   } catch (error) {
     console.error('Buy credits error:', error);
     res.status(500).json({ 
@@ -320,6 +459,8 @@ exports.buyCredits = async (req, res) => {
     });
   }
 };
+
+
 
 // Cancel listing
 exports.cancelListing = async (req, res) => {

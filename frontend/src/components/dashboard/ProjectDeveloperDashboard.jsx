@@ -327,9 +327,9 @@ const ProjectDeveloperDashboard = () => {
 
                     <div className="flex items-center justify-between text-xs text-gray-500">
                       <span>Submitted: {formatDate(claim.createdAt)}</span>
-                      <button className="text-blue-600 hover:text-blue-700 font-medium">
+                      {/* <button className="text-blue-600 hover:text-blue-700 font-medium">
                         View Details
-                      </button>
+                      </button> */}
                     </div>
                   </div>
                 ))}
